@@ -1,0 +1,77 @@
+%=============================================================================
+\section{SLURM 的核心哲学：理解 HPC 的运行方式}
+%=============================================================================
+
+在开始任何操作之前，你需要先理解 HPC 集群和你的笔记本电脑有什么本质区别。
+
+\subsection{你的电脑 vs HPC 集群}
+
+在你自己的电脑上，运行一个 Python 程序很简单：打开终端，输入 \texttt{python train.py}，程序就在你的电脑上跑了。你是这台电脑的唯一用户，所有资源（CPU、内存、GPU）都归你一个人用。
+
+HPC 集群完全不一样。它是一台\textbf{由上百台服务器组成的``超级计算机''}，同时有几十甚至上百个用户在使用。如果大家都直接运行程序，就像几百个人同时在一个厨房里做饭——必然乱套。
+
+所以集群需要一个\textbf{调度系统}来维持秩序：你不能直接跑程序，而是要先``申请资源''，说明你需要多少 CPU、多少内存、用多长时间，然后系统帮你安排。
+
+\subsection{SLURM 是什么？}
+
+\textbf{SLURM}（Simple Linux Utility for Resource Management）就是 Tufts 集群使用的调度系统。你可以把它想象成一个\textbf{餐厅的排号系统}：
+
+\begin{enumerate}[nosep]
+  \item \textbf{你告诉服务员}（写一个作业脚本）：``我需要一个 4 人桌、靠窗的位置、用 2 小时''
+  \item \textbf{系统排号}（SLURM 把你的请求放进队列）
+  \item \textbf{有位置了就安排你入座}（当集群有足够空闲资源时，SLURM 把你分配到某台服务器上）
+  \item \textbf{你吃完走人}（程序运行完毕，结果写入文件，资源释放）
+\end{enumerate}
+
+整个过程是\textbf{异步的}——你提交作业后可以关掉终端去做别的事，程序会在后台自动运行。
+
+\subsection{两种关键的节点：登录节点 vs 计算节点}
+
+\begin{conceptbox}
+当你 SSH 连接到集群时，你降落在\textbf{登录节点}（Login Node）上。登录节点就像一个大厅，只用来做轻量操作：编辑文件、提交作业、查看结果。
+
+真正跑计算的是\textbf{计算节点}（Compute Node）——你通过 SLURM 申请之后才能使用它们。
+
+\textbf{永远不要在登录节点上直接跑训练程序}，这会影响所有其他用户。
+\end{conceptbox}
+
+那么具体什么\textbf{可以}在登录节点上做，什么\textbf{不可以}？一个简单的判断标准：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lp{8cm}}
+\toprule
+可以在登录节点做 & 不可以在登录节点做 \\
+\midrule
+编辑文件（vim, nano 等） & 运行训练脚本（python train.py） \\
+\texttt{module load}（只是修改环境变量） & 处理大型数据集 \\
+\texttt{sbatch} 提交作业 & 运行消耗大量 CPU/GPU 的程序 \\
+\texttt{squeue}、\texttt{sinfo} 查看状态 & 编译大型软件 \\
+\texttt{hpctools} 查看资源 & \\
+\texttt{rsync}/\texttt{scp} 传文件 & \\
+\texttt{conda create} 创建环境* & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent *注：创建 Conda 环境和安装包涉及一定计算，官方建议在交互式计算节点上操作，但如果只是小规模安装（几个包），在登录节点上做通常也不会有问题。
+
+Tufts 集群有 3 个登录节点（\texttt{login-p01}, \texttt{login-p02}, \texttt{login-p03}），通过统一入口 \texttt{login-prod.pax.tufts.edu} 自动分配。
+
+\subsection{你的程序到底是怎么``跑起来''的？}
+
+这是很多新手最困惑的地方，让我们一步步拆解：
+
+\begin{enumerate}
+  \item \textbf{你的代码和数据}存放在集群的共享存储系统上（一个 3PB 的大硬盘，所有节点都能访问）
+  \item 你写一个\textbf{作业脚本}（就是一个 \texttt{.sh} 文件），里面说明：需要什么资源、要运行什么命令
+  \item 你用 \texttt{sbatch} 命令提交这个脚本
+  \item SLURM 找到一台空闲的计算节点，在上面\textbf{以你的身份}执行这个脚本
+  \item 因为所有节点共享同一个存储系统，计算节点\textbf{能直接读取你的代码和数据}——不需要额外复制
+  \item 程序的标准输出（\texttt{print} 的内容）被重定向到一个日志文件里
+  \item 程序产生的输出文件（模型、结果等）直接写在共享存储上，跑完后你在登录节点就能看到
+\end{enumerate}
+
+\begin{tipbox}
+关键理解：\textbf{所有节点看到的是同一套文件系统。}你在登录节点上传的文件，计算节点立刻就能读取；计算节点写出的结果，你在登录节点立刻就能下载。不存在``从计算节点复制结果到登录节点''的步骤。
+\end{tipbox}

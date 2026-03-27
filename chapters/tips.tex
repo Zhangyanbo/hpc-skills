@@ -1,0 +1,94 @@
+%=============================================================================
+\section{实用技巧}
+%=============================================================================
+
+\subsection{利用 preempt 分区跑更多实验}
+
+\texttt{preempt} 分区的资源上限更高（20 GPU vs 10 GPU），但作业可能被节点所有者的任务\textbf{抢占}——SLURM 会在约 30 秒内 kill 你的进程。
+
+应对策略是\textbf{让你的程序支持断点续训}：
+
+\begin{lstlisting}[language=python,title={在 train.py 中添加 checkpoint 逻辑}]
+import os, torch
+
+ckpt_path = f"{args.output_dir}/checkpoint.pt"
+
+# 启动时检查是否有已保存的进度
+if os.path.exists(ckpt_path):
+    checkpoint = torch.load(ckpt_path)
+    model.load_state_dict(checkpoint["model"])
+    start_epoch = checkpoint["epoch"]
+    print(f"Resumed from epoch {start_epoch}")
+else:
+    start_epoch = 0
+
+# 训练过程中定期保存
+for epoch in range(start_epoch, total_epochs):
+    train_one_epoch(model, ...)
+    if epoch % 10 == 0:  # 每 10 个 epoch 保存一次
+        torch.save({"model": model.state_dict(), "epoch": epoch}, ckpt_path)
+\end{lstlisting}
+
+这样即使作业被抢占，重新提交后也能从上次的进度继续，而不是从头开始。
+
+\subsection{用邮件通知监控实验}
+
+\begin{lstlisting}[language=slurm]
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=your.email@tufts.edu
+\end{lstlisting}
+
+对于 Array Job（一次提交上百个任务），建议只在失败时通知，否则你的邮箱会被淹没：
+
+\begin{lstlisting}[language=slurm]
+#SBATCH --mail-type=FAIL
+\end{lstlisting}
+
+\subsection{汇总实验结果}
+
+所有实验跑完后，用一个简单的 Python 脚本汇总各组的结果：
+
+\begin{lstlisting}[language=python,title={\texttt{collect\_results.py}}]
+import os, json, pandas as pd
+
+rows = []
+for env in open("configs/envs.txt"):
+    env = env.strip()
+    for arch in open("configs/archs.txt"):
+        arch = arch.strip()
+        for seed in range(5):
+            result_file = f"results/{env}/{arch}/seed_{seed}/metrics.json"
+            if os.path.exists(result_file):
+                with open(result_file) as f:
+                    metrics = json.load(f)
+                rows.append({"env": env, "arch": arch, "seed": seed,
+                             **metrics})
+
+df = pd.DataFrame(rows)
+summary = df.groupby(["env", "arch"]).agg(
+    reward_mean=("final_reward", "mean"),
+    reward_std=("final_reward", "std"),
+).reset_index()
+summary.to_csv("results/summary.csv", index=False)
+print(summary.to_string())
+\end{lstlisting}
+
+\subsection{检查哪些实验失败了}
+
+\begin{lstlisting}[language=bash]
+# 查看有错误输出的日志
+grep -l "Error\|Traceback\|CANCELLED" logs/*.err
+
+# 查看哪些结果文件缺失
+python -c "
+import os
+envs = open('configs/envs.txt').read().split()
+archs = open('configs/archs.txt').read().split()
+for e in envs:
+    for a in archs:
+        for s in range(5):
+            p = f'results/{e}/{a}/seed_{s}/metrics.json'
+            if not os.path.exists(p):
+                print(f'MISSING: {e} / {a} / seed {s}')
+"
+\end{lstlisting}

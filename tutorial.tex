@@ -1,0 +1,90 @@
+% !TEX program = xelatex
+\documentclass[12pt,a4paper]{ctexart}
+
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{fancyvrb}
+\usepackage{tcolorbox}
+\tcbuselibrary{listings,skins,breakable}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  urlcolor=blue!70!black,
+}
+
+% 代码样式
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  rulecolor=\color{gray!30},
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  commentstyle=\color{green!50!black},
+  keywordstyle=\color{blue!70!black}\bfseries,
+  stringstyle=\color{red!60!black},
+}
+
+\lstdefinelanguage{slurm}{
+  morekeywords={SBATCH,sbatch,srun,squeue,scancel,seff,sacct,scontrol,module,load,conda,activate,python},
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+
+\newtcolorbox{tipbox}[1][]{
+  colback=blue!5,colframe=blue!50!black,
+  fonttitle=\bfseries,title=提示,#1
+}
+
+\newtcolorbox{warnbox}[1][]{
+  colback=red!5,colframe=red!50!black,
+  fonttitle=\bfseries,title=注意,#1
+}
+
+\newtcolorbox{conceptbox}[1][]{
+  colback=green!5,colframe=green!50!black,
+  fonttitle=\bfseries,title=核心概念,#1
+}
+
+\title{\textbf{Tufts HPC 集群使用教程}\\[6pt]
+\large 从零开始，以强化学习实验矩阵为例}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ---- 第一部分：速查与快速上手（每天都用）----
+\input{chapters/cheatsheet}          % 日常速查表
+\input{chapters/quick_start}         % Quick Start：5 步跑起来
+
+% ---- 第二部分：常用操作详解（经常需要翻阅）----
+\input{chapters/connect}             % 连接：SSH、免密、跳板机
+\input{chapters/slurm_details}       % SLURM：写脚本、提交、输出文件、交互调试
+\input{chapters/file_transfer}       % 文件传输：scp、rsync、Globus
+\input{chapters/software}            % 软件环境：Module、Conda、uv
+
+% ---- 第三部分：存储与资源管理（定期关注）----
+\input{chapters/storage}             % 存储：Home vs Research、配额、文件归属
+\input{chapters/directory_management}% 目录管理：推荐布局、清理
+\input{chapters/resources}           % 集群资源：分区、GPU、监控工具
+
+% ---- 第四部分：背景知识与进阶（读一次，需要时回来查）----
+\input{chapters/slurm_philosophy}    % SLURM 哲学：为什么需要调度器
+\input{chapters/rl_experiment}       % 实战：RL 实验矩阵（Array Job）
+\input{chapters/tips}                % 实用技巧：preempt、断点续训、邮件通知
+\input{chapters/workflow_summary}    % 完整工作流总结
+\input{chapters/appendix}            % 附录：命令速查、SBATCH 指令、致谢
+
+\end{document}

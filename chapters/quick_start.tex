@@ -1,0 +1,112 @@
+%=============================================================================
+\section{Quick Start：科研工作者的日常流程}
+%=============================================================================
+
+如果你只想尽快跑起来，这一节就够了。后面的章节是详细解释。
+
+\subsection{一次典型的工作流}
+
+假设你已经在本地写好了代码，想在集群上跑。整个过程只需要 5 步：
+
+\textbf{第 1 步：把代码同步到集群}
+
+在你的\textbf{本地电脑}上运行：
+
+\begin{lstlisting}[language=bash]
+rsync -azP --exclude='.venv' --exclude='__pycache__' \
+  ./my_project/ your_utln@login-prod.pax.tufts.edu:~/my_project/
+\end{lstlisting}
+
+如果你已经配置了 SSH 别名（见连接章节），可以简写为：
+
+\begin{lstlisting}[language=bash]
+rsync -azP --exclude='.venv' --exclude='__pycache__' \
+  ./my_project/ hpc:~/my_project/
+\end{lstlisting}
+
+\texttt{rsync} 只传有变化的文件，所以第二次开始会很快。
+
+\textbf{第 2 步：SSH 登录集群}
+
+\begin{lstlisting}[language=bash]
+ssh hpc    # 或 ssh your_utln@login-prod.pax.tufts.edu
+\end{lstlisting}
+
+\textbf{第 3 步：提交作业}
+
+假设你的项目里已经有一个 SLURM 脚本 \texttt{run.sh}：
+
+\begin{lstlisting}[language=bash]
+cd ~/my_project
+sbatch run.sh
+# 输出: Submitted batch job 347502
+\end{lstlisting}
+
+不知道怎么写 SLURM 脚本？这里是一个最小的模板，保存为 \texttt{run.sh}：
+
+\begin{lstlisting}[language=slurm]
+#!/bin/bash
+#SBATCH -J my_job               # 作业名
+#SBATCH --time=00-06:00:00      # 最多跑 6 小时
+#SBATCH -p gpu                  # 使用 GPU 分区
+#SBATCH --gres=gpu:1            # 1 块 GPU
+#SBATCH --cpus-per-task=4       # 4 个 CPU 核
+#SBATCH --mem=16g               # 16GB 内存
+#SBATCH --output=%x.%j.out      # 标准输出日志
+#SBATCH --error=%x.%j.err       # 错误日志
+
+module load miniforge/25.3.0    # 加载 Conda
+module load cuda/12.9.0         # 加载 CUDA
+conda activate my_env           # 激活你的环境
+
+python train.py                 # 运行你的程序
+\end{lstlisting}
+
+如果不需要 GPU，把 \texttt{-p gpu} 改成 \texttt{-p batch}，删掉 \texttt{--gres} 那行。
+
+\textbf{第 4 步：查看作业状态}
+
+\begin{lstlisting}[language=bash]
+squeue --me                    # 看作业是在跑(R)还是排队(PD)
+cat my_job.347502.out          # 看输出日志（347502 换成你的 Job ID）
+\end{lstlisting}
+
+提交之后你可以断开 SSH 去做别的事，作业会在后台继续跑。
+
+\textbf{第 5 步：下载结果}
+
+作业跑完后，在你的\textbf{本地电脑}上运行：
+
+\begin{lstlisting}[language=bash]
+rsync -azP hpc:~/my_project/results/ ./results/
+\end{lstlisting}
+
+\subsection{每天重复的部分}
+
+上面 5 步里，第 2-4 步是你每天都会做的。最常见的循环是：
+
+\begin{enumerate}[nosep]
+  \item 本地改代码
+  \item \texttt{rsync} 同步到集群（10 秒）
+  \item \texttt{ssh hpc}，\texttt{sbatch run.sh}（5 秒）
+  \item 过一会儿 \texttt{squeue --me} 看状态
+  \item 跑完后 \texttt{rsync} 拉结果回来
+\end{enumerate}
+
+\subsection{遇到问题时怎么办}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{8cm}}
+\toprule
+情况 & 怎么做 \\
+\midrule
+作业一直排队（PD） & \texttt{sinfo} 看分区是否有空闲节点；减少资源请求；尝试加 \texttt{preempt} 分区 \\
+作业运行失败 & 看 \texttt{.err} 日志文件找报错信息 \\
+不确定环境对不对 & 开一个交互式节点调试：\texttt{srun -p batch -t 0-1:00:00 --mem=4g --pty bash} \\
+配额满了 & \texttt{watch -n 5 quota -s} 监控；\texttt{du -sh \textasciitilde/.cache/*} 找大文件；\texttt{rm -rf \textasciitilde/.cache/uv} 清缓存 \\
+想取消所有作业 & \texttt{scancel -u \$USER} \\
+\bottomrule
+\end{tabular}
+\end{table}

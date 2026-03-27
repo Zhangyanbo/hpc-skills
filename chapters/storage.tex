@@ -1,0 +1,81 @@
+%=============================================================================
+\section{存储系统：你的文件存在哪里？}
+%=============================================================================
+
+理解存储结构是使用 HPC 的基础。集群有一个 3PB 的共享存储系统，\textbf{所有登录节点和计算节点都能访问}。
+
+\subsection{登录后看到的文件都是谁的？}
+
+这是很多新手的困惑：登录集群后 \texttt{ls} 一下，看到一堆文件夹，不确定哪些是自己的、哪些是别人的、能不能删。
+
+\textbf{简单的答案是：你登录后看到的所有文件都是你自己的。}
+
+原因如下：
+\begin{itemize}[nosep]
+  \item 你 SSH 登录后，默认落在你的 \textbf{Home 目录}（\texttt{/cluster/home/your\_utln}）
+  \item 这个目录是\textbf{你的私人空间}，只有你能看到和修改（除非你主动改了权限）
+  \item 其他用户的 Home 目录在 \texttt{/cluster/home/别人的utln}，和你的完全隔离
+  \item 即使你 \texttt{srun} 进入计算节点，看到的文件也一样——因为所有节点共享同一个文件系统，你还是在你自己的 Home 目录里
+\end{itemize}
+
+你可以用以下命令确认自己在哪里、文件归谁：
+
+\begin{lstlisting}[language=bash]
+pwd                  # 查看当前目录（应该显示 /cluster/home/your_utln）
+ls -la               # 查看文件详情，第 3 列是文件所有者
+whoami               # 确认当前用户身份
+\end{lstlisting}
+
+\texttt{ls -la} 的输出中，第 3 列显示文件所有者，第 4 列显示所属组：
+
+\begin{lstlisting}
+drwxr-xr-x  3 your_utln your_utln 4096 Mar 23 10:00 condaenv
+drwxr-xr-x  5 your_utln your_utln 4096 Mar 23 10:00 condapkg
+                ^^^^^^^^^
+                这里显示的是文件所有者，全是你自己
+\end{lstlisting}
+
+\begin{tipbox}
+\textbf{常见的``遗留文件''及其来源：}
+\begin{itemize}[nosep]
+  \item \texttt{condaenv} / \texttt{condapkg} — Conda 的环境和包缓存目录。\textbf{如果它们在 Home 目录下，说明 Conda 路径配置不对}——应该迁移到 Research 存储里（见软件环境章节），否则会很快撑满 30GB 配额
+  \item \texttt{ondemand} — OnDemand 网页界面自动创建的工作目录，\textbf{不要删}
+  \item \texttt{.ipynb} 文件 — 你之前用 Jupyter Notebook 创建的，确认不需要可以删
+  \item 软件名目录（如 \texttt{Wolfram Mathematica}）— 你之前使用过该软件时留下的，确认不需要可以删
+\end{itemize}
+这些都是\textbf{你自己之前操作时产生的}，不是别人的文件，放心处理。
+\end{tipbox}
+
+\subsection{两类存储空间}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lp{3cm}p{3cm}p{4cm}}
+\toprule
+类型 & 路径 & 配额 & 用途 \\
+\midrule
+\textbf{Home 目录} & \texttt{/cluster/home/\linebreak your\_utln} & 30 GB（固定） & 个人配置、小型代码 \\
+\textbf{Research 存储} & \texttt{/cluster/tufts/\linebreak lab\_name/your\_utln} & 至少 50 GB（可扩展） & 实验数据、大型项目 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Research 存储和 Home 目录的归属逻辑类似：\texttt{/cluster/tufts/lab\_name/your\_utln} 这个子目录是你的个人空间。但 \texttt{/cluster/tufts/lab\_name/} 这一层是整个实验室共享的，你可能能看到同事的目录（取决于权限设置）。
+
+\begin{warnbox}
+Home 目录只有 30GB，很容易被 conda 环境和数据集撑满。\textbf{建议把实验项目、数据集、conda 环境都放在 Research 存储里。}
+
+查看用量：\texttt{df -H /cluster/tufts/your\_lab\_name}
+\end{warnbox}
+
+\begin{tipbox}
+如果你想确保自己的 Home 目录不被其他用户查看，可以运行：
+\begin{lstlisting}[language=bash]
+chmod 700 ~
+\end{lstlisting}
+这会把权限设为``只有自己可读写执行''。
+\end{tipbox}
+
+\subsection{集群禁止存放受限数据}
+
+根据 Tufts HPC 政策，集群上\textbf{不允许存放受限数据}（Restricted Data），包括 HIPAA、FERPA 等受保护的信息。更多使用规则见附录 D。

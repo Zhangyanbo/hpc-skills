@@ -1,0 +1,146 @@
+%=============================================================================
+\section{连接到集群}
+%=============================================================================
+
+\subsection{新旧集群：确保你连的是新集群}
+
+Tufts 目前有两套 HPC 集群——\textbf{旧集群}正在逐步淘汰，\textbf{新集群}（升级版）是官方推荐使用的。两者的登录地址不同：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lll}
+\toprule
+ & SSH 登录地址 & OnDemand 网址 \\
+\midrule
+\textbf{新集群}（推荐） & \texttt{login-prod.pax.tufts.edu} & \texttt{ondemand-prod.pax.tufts.edu} \\
+旧集群（淘汰中） & \texttt{login.pax.tufts.edu} & \texttt{ondemand.pax.tufts.edu} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warnbox}
+\textbf{请始终使用新集群}（带 \texttt{-prod} 后缀的地址）。旧集群仍然可以登录，但 Tufts 官方强烈建议迁移到新集群，旧集群将来会被关闭。如果你之前的脚本或配置里用了 \texttt{login.pax.tufts.edu}（不带 \texttt{-prod}），请尽快更新。
+\end{warnbox}
+
+本教程所有内容均基于\textbf{新集群}。
+
+\subsection{SSH 登录}
+
+通过 SSH 连接到新集群的登录节点：
+
+\begin{lstlisting}[language=bash]
+ssh your_utln@login-prod.pax.tufts.edu
+\end{lstlisting}
+
+这里 \texttt{your\_utln} 是你的 Tufts 用户名（全小写）。如果你在校外，需要先连接 Tufts VPN（或使用跳板机，见后文）。
+
+登录成功后，你会看到类似这样的提示符：
+
+\begin{lstlisting}
+[your_utln@login-p01 ~]$
+\end{lstlisting}
+
+\texttt{login-p01} 表示你当前在第 1 个登录节点上。这个编号不重要，3 个登录节点看到的文件完全一样。
+
+\subsection{OnDemand 网页界面}
+
+如果你不熟悉命令行，也可以通过浏览器访问：
+
+\begin{center}
+\url{https://ondemand-prod.pax.tufts.edu/}
+\end{center}
+
+OnDemand 提供图形化的文件管理器、终端、以及 Jupyter Notebook 等应用，适合入门和调试。
+
+\subsection{进阶：免密码登录与跳板机（无需 VPN）}
+
+每次登录都要输密码很烦。你可以配置 \textbf{SSH Key} 实现免密登录。
+
+\subsubsection{第一步：生成密钥对（如果还没有）}
+
+在你的\textbf{本地电脑}上运行：
+
+\begin{lstlisting}[language=bash]
+# 检查是否已有密钥
+ls ~/.ssh/id_*.pub
+
+# 如果没有，生成一对
+ssh-keygen -t ed25519
+# 一路回车即可（不设密码短语）
+\end{lstlisting}
+
+\subsubsection{第二步：把公钥传到集群上}
+
+\begin{lstlisting}[language=bash]
+ssh-copy-id your_utln@login-prod.pax.tufts.edu
+\end{lstlisting}
+
+输入一次密码后，以后就不需要了。验证：
+
+\begin{lstlisting}[language=bash]
+ssh your_utln@login-prod.pax.tufts.edu
+# 应该直接进去，不再问密码
+\end{lstlisting}
+
+\begin{tipbox}
+如果免密登录不生效，检查集群上的文件权限：
+\begin{lstlisting}[language=bash]
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+\end{lstlisting}
+\end{tipbox}
+
+\subsubsection{第三步（可选）：配置别名，简化命令}
+
+每次输 \texttt{ssh your\_utln@login-prod.pax.tufts.edu} 太长了。在本地编辑 \texttt{\textasciitilde/.ssh/config}，添加：
+
+\begin{lstlisting}
+Host hpc
+    HostName login-prod.pax.tufts.edu
+    User your_utln
+\end{lstlisting}
+
+之后只需要 \texttt{ssh hpc} 即可登录，\texttt{rsync}、\texttt{scp} 也可以用这个别名：
+
+\begin{lstlisting}[language=bash]
+rsync -azP ./project/ hpc:~/project/
+scp results.csv hpc:~/
+\end{lstlisting}
+
+\subsubsection{第四步（可选）：通过跳板机连接，不需要 VPN}
+
+如果你在校外又不想用 VPN，可以通过一台\textbf{校内能访问的服务器}作为跳板（ProxyJump）。前提是你有一台可以从外网访问的校内机器（比如通过 ngrok 暴露的实验室服务器）。
+
+在本地 \texttt{\textasciitilde/.ssh/config} 中配置：
+
+\begin{lstlisting}
+# 跳板机（你的校内服务器，通过 ngrok 等方式从外网可达）
+Host my_jump_server
+    HostName your_server_address
+    User your_username
+    Port your_port
+
+# HPC，通过跳板机连接
+Host hpc
+    HostName login-prod.pax.tufts.edu
+    User your_utln
+    ProxyJump my_jump_server
+\end{lstlisting}
+
+\texttt{ProxyJump} 告诉 SSH：先连跳板机，再从跳板机连 HPC。对你来说就是一条命令：
+
+\begin{lstlisting}[language=bash]
+ssh hpc    # 自动经过跳板机，直达 HPC 登录节点
+\end{lstlisting}
+
+配合免密登录（对跳板机和 HPC 都做 \texttt{ssh-copy-id}），整个过程零密码、无 VPN。
+
+\begin{lstlisting}[language=bash]
+# 分别对跳板机和 HPC 配置免密（各输一次密码，之后永久免密）
+ssh-copy-id my_jump_server
+ssh-copy-id hpc
+\end{lstlisting}
+
+\begin{warnbox}
+跳板机方案的前提是你有一台校内服务器可以从外网访问。如果你没有这样的机器，还是需要使用 Tufts VPN。
+\end{warnbox}

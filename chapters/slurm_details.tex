@@ -1,0 +1,197 @@
+%=============================================================================
+\section{SLURM 详解：提交和管理作业}
+%=============================================================================
+
+现在你已经了解了集群的基本结构、文件存储、以及怎么准备软件环境。接下来我们来看怎么真正提交一个计算任务。
+
+\subsection{作业脚本的结构}
+
+一个 SLURM 作业脚本就是一个普通的 Bash 脚本，但开头多了一些 \texttt{\#SBATCH} 开头的特殊注释。SLURM 读这些注释来了解你需要什么资源。
+
+我们来逐行看一个完整的例子：
+
+\begin{lstlisting}[language=slurm]
+#!/bin/bash
+\end{lstlisting}
+
+这行声明这是一个 Bash 脚本，是所有 shell 脚本的标准开头。
+
+\begin{lstlisting}[language=slurm]
+#SBATCH -J my_experiment       # 作业名称（方便你在队列里识别）
+#SBATCH --time=00-06:00:00     # 最多运行 6 小时（格式：DD-HH:MM:SS）
+\end{lstlisting}
+
+\texttt{-J} 设置作业名称，会显示在 \texttt{squeue} 输出里。\texttt{--time} 设置时间上限——超过这个时间作业会被强制终止。\textbf{所有公共分区的时间上限是 2 天}（\texttt{2-00:00:00}）。
+
+\begin{lstlisting}[language=slurm]
+#SBATCH -p gpu                 # 使用 gpu 分区
+#SBATCH --gres=gpu:1           # 需要 1 块 GPU
+#SBATCH --cpus-per-task=4      # 需要 4 个 CPU 核
+#SBATCH --mem=16g              # 需要 16GB 内存
+\end{lstlisting}
+
+这几行声明你需要的\textbf{硬件资源}。\texttt{-p} 选择分区（后面会详细讲），\texttt{--gres} 请求 GPU，\texttt{--cpus-per-task} 和 \texttt{--mem} 分别请求 CPU 和内存。
+
+\begin{lstlisting}[language=slurm]
+#SBATCH --output=my_exp.%j.out # 标准输出写入此文件
+#SBATCH --error=my_exp.%j.err  # 错误输出写入此文件
+\end{lstlisting}
+
+这两行\textbf{非常重要}——它们决定了你的程序输出（\texttt{print} 的内容、报错信息）保存在哪里。\texttt{\%j} 会被替换为作业 ID，这样每次运行都有独立的日志文件。
+
+\begin{lstlisting}[language=slurm]
+# ---- 以下是普通的 shell 命令 ----
+module load cuda/12.9.0        # 加载 CUDA
+module load miniforge/25.3.0    # 加载 Conda
+conda activate rl_env           # 激活环境
+
+python train.py --lr 0.001      # 运行你的程序
+\end{lstlisting}
+
+\texttt{\#SBATCH} 行之后，就是普通的 shell 命令，和你在终端里敲的一模一样。
+
+\begin{warnbox}
+\texttt{\#SBATCH} 行看起来像注释，但 SLURM 会解析它们。它们\textbf{必须紧跟在 \texttt{\#!/bin/bash} 之后}，在任何非注释命令之前。如果中间插了一行普通命令（哪怕是 \texttt{echo}），后面的 \texttt{\#SBATCH} 都会被忽略。
+\end{warnbox}
+
+\subsection{输出文件在哪里？}
+
+这是很多新手最常问的问题。答案取决于你怎么写 \texttt{--output} 和 \texttt{--error}：
+
+\subsubsection{SLURM 日志文件（标准输出/错误）}
+
+\begin{itemize}
+  \item 如果你写了 \texttt{--output=my\_exp.\%j.out}，日志文件就在\textbf{你提交作业时所在的目录}下
+  \item 如果你写了 \texttt{--output=logs/\%x.\%j.out}，就在那个目录的 \texttt{logs/} 子目录下（目录必须提前创建）
+  \item 如果你\textbf{没写} \texttt{--output}，默认输出到 \texttt{slurm-JOBID.out}，也在提交目录下
+\end{itemize}
+
+常用的文件名变量：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+变量 & 含义 \\
+\midrule
+\texttt{\%j} & Job ID（如 \texttt{296794}） \\
+\texttt{\%x} & 作业名称（\texttt{-J} 设置的名字） \\
+\texttt{\%A} & Array Job 的主 ID \\
+\texttt{\%a} & Array Task 的序号 \\
+\texttt{\%N} & 运行节点名 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{你的程序自己写出的文件}
+
+除了 SLURM 日志，你的程序通常还会写出其他文件（模型权重、CSV 结果等）。这些文件\textbf{保存在你程序里指定的路径下}。
+
+例如，如果你的 \texttt{train.py} 里写了：
+
+\begin{lstlisting}[language=python]
+torch.save(model, "results/model.pt")
+\end{lstlisting}
+
+那么 \texttt{results/model.pt} 就在\textbf{计算节点执行脚本时的工作目录下}——通常就是你提交 \texttt{sbatch} 时所在的目录。
+
+\begin{tipbox}
+\textbf{最佳实践}：在程序里用绝对路径或相对于项目根目录的路径来保存结果，避免文件散落到意想不到的地方。例如：
+
+\begin{lstlisting}[language=python]
+output_dir = f"/cluster/tufts/mylab/myutln/project/results/{env}/{arch}/seed_{seed}"
+os.makedirs(output_dir, exist_ok=True)
+\end{lstlisting}
+\end{tipbox}
+
+\subsection{怎样取回结果文件？}
+
+作业跑完后，结果文件已经在集群的共享存储上了。你有几种方式获取它们：
+
+\textbf{方式一：直接在集群上查看}
+
+\begin{lstlisting}[language=bash]
+# SSH 登录后直接查看
+cat my_exp.296794.out              # 看日志
+ls results/                        # 看结果文件
+\end{lstlisting}
+
+\textbf{方式二：下载到本地（小文件用 scp）}
+
+\begin{lstlisting}[language=bash]
+# 在你的本地电脑上运行
+scp your_utln@login-prod.pax.tufts.edu:~/project/results/summary.csv ./
+\end{lstlisting}
+
+\textbf{方式三：下载到本地（大量文件用 rsync）}
+
+\begin{lstlisting}[language=bash]
+# 只同步有变化的结果文件，增量下载
+rsync -azP your_utln@login-prod.pax.tufts.edu:~/project/results/ ./results/
+\end{lstlisting}
+
+\textbf{方式四：超大数据用 Globus}
+
+如果结果文件有几十 GB（比如大量 checkpoint），用 Globus 后台传输最稳定。参见第 \ref{sec:file-transfer} 节。
+
+\subsection{提交和管理作业}
+
+\textbf{提交作业：}
+
+\begin{lstlisting}[language=bash]
+$ sbatch my_job.sh
+Submitted batch job 296794      # SLURM 返回 Job ID，记住这个号
+\end{lstlisting}
+
+\textbf{查看作业状态：}
+
+\begin{lstlisting}[language=bash]
+$ squeue --me
+  JOBID PARTITION  NAME     USER  ST  TIME  NODES NODELIST
+ 296794       gpu  my_exp  yzhang  R  3:42      1 pax003
+\end{lstlisting}
+
+状态码含义：\texttt{R} = 正在运行，\texttt{PD} = 在排队等资源，\texttt{CG} = 即将完成。
+
+常见排队原因：\texttt{Resources}（资源不足）、\texttt{Priority}（优先级低）、\texttt{QOSMax}（超出配额限制）。
+
+\textbf{取消作业：}
+
+\begin{lstlisting}[language=bash]
+scancel 296794          # 取消指定作业
+scancel -u $USER        # 取消你的所有作业
+\end{lstlisting}
+
+\textbf{查看已完成作业的资源效率：}
+
+\begin{lstlisting}[language=bash]
+seff 296794
+\end{lstlisting}
+
+这会显示你实际用了多少 CPU 和内存。如果利用率很低，下次可以减少请求量——\textbf{请求越精确，排队时间越短}。
+
+\subsection{交互式会话：调试用}
+
+如果你想在计算节点上直接敲命令（比如调试程序、测试环境），可以用 \texttt{srun} 申请一个交互式会话：
+
+\begin{lstlisting}[language=bash]
+# CPU 交互式会话
+srun -p batch -t 0-2:00:00 -n 2 --mem=4g --pty bash
+
+# GPU 交互式会话
+srun -p gpu -t 0-2:00:00 -n 2 --mem=4g --gres=gpu:1 --pty bash
+\end{lstlisting}
+
+\texttt{--pty bash} 的意思是``给我一个交互式的 bash 终端''。进入后你会看到提示符从 \texttt{login-p01} 变成类似 \texttt{pax006} 的计算节点名，说明你已经在计算节点上了。用 \texttt{exit} 退出并释放资源。
+
+\begin{tipbox}
+退出时你可能会看到类似这样的报错：
+\begin{lstlisting}
+srun: error: pax017: task 0: Exited with exit code 1
+\end{lstlisting}
+\textbf{这通常是无害的}，不代表出了什么问题。它只是说你的 shell 退出时状态码不是 0——最常见的原因是 Conda 的 \texttt{(base)} 环境激活脚本或之前某个命令（比如打错了一个命令名）在 shell 内部留下了非零退出码。资源已经正常释放了，不用担心。
+\end{tipbox}
+
+\begin{tipbox}
+交互式会话的 QOS 允许最多 4 小时、1 个 GPU。适合调试，不适合跑完整实验。
+\end{tipbox}

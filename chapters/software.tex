@@ -1,0 +1,209 @@
+%=============================================================================
+\section{软件环境：怎样使用程序和包？}
+%=============================================================================
+
+在你自己的电脑上，你可能直接 \texttt{pip install} 就行了。但在 HPC 上，软件管理方式不太一样。
+
+\begin{warnbox}
+HPC 集群上你\textbf{没有管理员权限}，不能用 \texttt{apt-get}、\texttt{yum} 等系统包管理器安装软件。所有软件要么通过 Module 系统加载，要么通过 Conda/pip 安装到你自己的目录里。
+
+另外，\textbf{不要在登录节点上跑任何计算或安装操作}。即使是创建 Conda 环境、安装 Python 包，也应该先用 \texttt{srun} 进入一个交互式计算节点再操作。
+\end{warnbox}
+
+\subsection{Module 系统：集群的``软件开关''}
+
+HPC 集群上预装了大量软件（Python、CUDA、GCC、R 等等），但它们默认\textbf{不在你的环境变量里}。你需要用 \texttt{module load} 命令来``激活''它们。
+
+为什么要这样设计？因为不同用户可能需要不同版本的同一个软件。Module 系统让每个人可以精确控制自己使用哪个版本，互不干扰。
+
+\textbf{常用 module 命令：}
+
+\begin{lstlisting}[language=bash]
+# 查看有哪些软件可用（当前环境）
+module av
+
+# 搜索特定软件（搜索全部，包括有依赖关系的）
+module spider python
+module spider cuda
+
+# 加载软件
+module load miniforge/25.3.0  # 加载 Conda（推荐）
+module load cuda/12.9.0       # 加载指定版本的 CUDA
+
+# 查看当前加载了什么
+module list
+
+# 卸载某个软件
+module unload miniforge
+
+# 清空所有已加载的软件
+module purge
+\end{lstlisting}
+
+\begin{tipbox}
+\texttt{module av} 只显示当前可以直接加载的软件。\texttt{module spider} 搜索范围更广，会告诉你某个软件是否存在、需要先加载哪些依赖。找软件时优先用 \texttt{module spider}。
+\end{tipbox}
+
+\subsection{Python 环境管理：Conda（官方推荐方式）}
+
+Tufts HPC 官方推荐使用 \textbf{Conda} 来管理 Python 环境和安装包。集群提供了两个 Conda module：
+
+\begin{itemize}[nosep]
+  \item \texttt{miniforge/25.3.0}（推荐）— 更轻量
+  \item \texttt{anaconda/2025.06.0} — 更完整，预装更多包
+\end{itemize}
+
+\subsubsection{第一步：配置存储路径（只需做一次）}
+
+Conda 环境和包缓存会占用大量空间。如果用默认路径，会很快撑满 Home 目录的 30GB 配额。\textbf{必须先把 Conda 的存储路径指向 Research 存储}：
+
+\begin{lstlisting}[language=bash]
+# 先创建目录
+mkdir -p /cluster/tufts/your_lab/$USER/condaenv
+mkdir -p /cluster/tufts/your_lab/$USER/condapkg
+
+# 配置 conda 使用这些目录
+conda config --append envs_dirs /cluster/tufts/your_lab/$USER/condaenv/
+conda config --append pkgs_dirs /cluster/tufts/your_lab/$USER/condapkg/
+\end{lstlisting}
+
+这会在你的 Home 目录下创建一个 \texttt{\textasciitilde/.condarc} 配置文件。之后创建的所有环境和下载的包都会存储在 Research 存储里，而不是占用 Home 目录的配额。
+
+\begin{warnbox}
+如果你在 \textbf{Home 目录}下（而不是 Research 存储里）看到 \texttt{condaenv} 和 \texttt{condapkg} 文件夹，说明 Conda 的存储路径配置到了 Home 目录——这会很快撑满 30GB 配额。应该把它们迁移到 Research 存储：
+
+\begin{lstlisting}[language=bash]
+# 把内容搬到 Research 存储
+mv ~/condaenv/* /cluster/tufts/your_lab/$USER/condaenv/
+mv ~/condapkg/* /cluster/tufts/your_lab/$USER/condapkg/
+rmdir ~/condaenv ~/condapkg
+
+# 然后更新 .condarc（参考上面的 conda config 命令）
+\end{lstlisting}
+\end{warnbox}
+
+\subsubsection{第二步：创建和使用环境}
+
+\begin{lstlisting}[language=bash]
+# 进入交互式计算节点（不要在登录节点上操作！）
+srun -p batch -t 0-2:00:00 -n 2 --mem=4g --pty bash
+
+# 加载 Conda
+module load miniforge/25.3.0
+
+# 创建一个新环境
+conda create -n rl_env python=3.11 -y
+
+# 激活环境
+conda activate rl_env
+
+# 安装包（优先用 conda install，找不到的包再用 pip）
+conda install pytorch gymnasium numpy pandas -c conda-forge
+# 或者用 pip（conda 里找不到的包）
+pip install some-rare-package
+\end{lstlisting}
+
+\begin{warnbox}
+\textbf{不要混用 \texttt{conda install} 和 \texttt{pip install}}——这可能破坏环境。最佳实践：先用 \texttt{conda install} 装所有能装的包，最后再用 \texttt{pip install} 补充 conda 里找不到的包。
+\end{warnbox}
+
+\subsubsection{在 SLURM 脚本中使用 Conda 环境}
+
+\begin{lstlisting}[language=slurm]
+#!/bin/bash
+#SBATCH -J my_job
+#SBATCH --time=00-06:00:00
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+
+module load miniforge/25.3.0
+module load cuda/12.9.0
+conda activate rl_env
+
+python train.py --lr 0.001
+\end{lstlisting}
+
+\subsection{关于 uv：需要额外安装}
+
+如果你在本地习惯用 \texttt{uv} 管理 Python 项目，在 HPC 上也可以用，但需要注意：\textbf{uv 不是集群预装的软件}，没有对应的 module，你需要自己安装。
+
+\begin{lstlisting}[language=bash]
+# 进入交互式计算节点
+srun -p batch -t 0-2:00:00 -n 2 --mem=4g --pty bash
+
+# 方法：先加载 Conda，用 pip 安装 uv 到用户目录
+module load miniforge/25.3.0
+pip install --user uv
+\end{lstlisting}
+
+安装后 \texttt{uv} 会被放在 \texttt{\textasciitilde/.local/bin/} 下。你需要确保这个路径在 \texttt{PATH} 里：
+
+\begin{lstlisting}[language=bash]
+# 检查 uv 是否可用
+which uv
+
+# 如果找不到，手动添加 PATH（也可以写入 ~/.bashrc）
+export PATH="$HOME/.local/bin:$PATH"
+\end{lstlisting}
+
+\begin{warnbox}
+以下事项需要注意：
+\begin{itemize}[nosep]
+  \item \texttt{uv} 不是 Tufts 官方支持的工具，遇到问题无法找 HPC 团队帮忙
+  \item 计算节点可能没有外网访问权限，\texttt{uv sync} 需要下载包时可能会失败
+  \item 如果外网受限，建议在登录节点完成 \texttt{uv sync}（仅限安装包，不要跑计算），或改用 Conda
+\end{itemize}
+\end{warnbox}
+
+\subsubsection{正确的使用方式：先手动 sync，脚本里直接用 .venv}
+
+\textbf{关键原则：不要在 SLURM 脚本里写 \texttt{uv sync}。}
+
+原因：如果你提交了一个 Array Job（比如 50 个任务），它们可能同时启动、同时执行 \texttt{uv sync}。每个任务都会尝试下载完整的依赖（比如 PyTorch 就好几个 GB），50 个任务同时下载 = 瞬间吃掉几十 GB 的缓存空间，直接撑爆你的存储配额。
+
+正确做法是\textbf{分两步走}：
+
+\textbf{第一步：手动登录计算节点，运行一次 \texttt{uv sync}}
+
+\begin{lstlisting}[language=bash]
+# 开一个交互式节点
+srun -p batch -t 0-1:00:00 --mem=4g --pty bash
+
+# 进入项目目录，同步依赖（只需做一次，或依赖变化时重做）
+cd ~/project/my_experiment
+uv sync
+\end{lstlisting}
+
+这会在项目目录下创建 \texttt{.venv/}，里面包含所有依赖。因为所有节点共享同一个文件系统，这个 \texttt{.venv} 在任何计算节点上都能直接使用。
+
+\texttt{uv sync} 会在 \texttt{\textasciitilde/.cache/uv/} 里缓存下载的包，下次 sync 时如果依赖没变就不需要重新下载。但这个缓存可能比较大（PyTorch 等大包会占几十 GB），如果 Home 配额吃紧，可以用 \texttt{rm -rf \textasciitilde/.cache/uv} 清理。
+
+\textbf{第二步：SLURM 脚本里直接调用 .venv 中的 Python}
+
+\begin{lstlisting}[language=slurm]
+#!/bin/bash
+#SBATCH -J my_job
+#SBATCH --time=00-06:00:00
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+
+module load cuda/12.9.0
+
+cd ~/project/my_experiment
+# 直接用 .venv 里的 python，不要 uv sync！
+.venv/bin/python train.py
+\end{lstlisting}
+
+注意最后一行：\texttt{.venv/bin/python} 直接调用虚拟环境里的 Python 解释器，不需要 \texttt{uv run} 或 \texttt{uv sync}，也不需要 \texttt{source .venv/bin/activate}。
+
+
+\begin{tipbox}
+推荐的 uv 工作流（完整版）：
+\begin{enumerate}[nosep]
+  \item 在本地开发，用 \texttt{uv add} 管理依赖
+  \item 用 \texttt{rsync} 把项目（包括 \texttt{pyproject.toml} 和 \texttt{uv.lock}）同步到集群
+  \item 在集群上手动 \texttt{srun} 进交互式节点，运行 \texttt{uv sync}（只需一次，或依赖变化时重做）
+  \item SLURM 脚本里用 \texttt{.venv/bin/python} 直接运行，\textbf{不要写 \texttt{uv sync}}
+\end{enumerate}
+如果遇到网络问题导致 \texttt{uv sync} 失败，建议回退到 Conda 方案。
+\end{tipbox}

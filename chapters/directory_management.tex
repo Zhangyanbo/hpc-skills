@@ -1,0 +1,70 @@
+%=============================================================================
+\section{目录管理：怎样组织你的文件？}
+%=============================================================================
+
+集群不像你的个人电脑——它的存储有配额限制，而且你可能同时跑几十个实验。花几分钟规划好目录结构，会在后续省掉很多麻烦。
+
+\subsection{推荐的目录布局}
+
+\begin{lstlisting}
+/cluster/home/your_utln/              # Home 目录（30GB）
+  .condarc                            # Conda 配置（指向 Research 存储）
+  .bashrc                             # Shell 配置
+  privatemodules/                     # 自定义 module（如果需要的话）
+
+/cluster/tufts/your_lab/your_utln/    # Research 存储（50GB+）
+  condaenv/                           # Conda 环境（按官方推荐配置到这里）
+  condapkg/                           # Conda 包缓存
+  projects/                           # 所有实验项目
+    rl_matrix/                        # 项目 1
+      train.py
+      configs/
+      scripts/
+      results/
+      logs/
+    nlp_finetune/                     # 项目 2
+      ...
+  datasets/                           # 共享数据集（避免每个项目复制一份）
+    mujoco_data/
+    imagenet_subset/
+\end{lstlisting}
+
+\subsection{核心原则}
+
+\begin{description}[style=nextline,leftmargin=2em]
+  \item[Home 目录只放配置文件]
+    \texttt{\textasciitilde/.condarc}、\texttt{\textasciitilde/.bashrc} 等配置文件很小，放 Home 没问题。但代码、数据、Conda 环境都应该放到 Research 存储里——Home 只有 30GB，一个 PyTorch 环境就能吃掉一半。
+
+  \item[每个项目一个独立目录]
+    和你在自己电脑上一样，每个实验项目放在独立的目录里，内部包含代码、配置、脚本、结果、日志。这样项目之间不会互相干扰，也方便用 \texttt{rsync} 同步。
+
+  \item[结果和日志与代码分开]
+    在项目目录里用 \texttt{results/} 和 \texttt{logs/} 子目录分别存放程序输出和 SLURM 日志。这样清理日志时不会误删代码，下载结果时也不用把整个项目都拉下来。
+
+  \item[数据集单独存放、项目间共享]
+    如果多个项目用同一份数据集，不要复制多份。在 Research 存储里建一个 \texttt{datasets/} 目录，各项目通过路径引用它。
+
+  \item[定期清理]
+    实验跑完、论文发了之后，把不需要的 checkpoint、日志和中间文件删掉释放空间。特别是 SLURM 的 \texttt{.out} 和 \texttt{.err} 日志——一次 Array Job 就能产生上百个日志文件。
+\end{description}
+
+\subsection{实用命令}
+
+\begin{lstlisting}[language=bash]
+# 查看 Home 目录用了多少空间
+du -sh ~
+
+# 查看 Research 存储的配额和用量
+df -H /cluster/tufts/your_lab
+
+# 找出占空间最多的目录（排序显示前 10 个）
+du -h --max-depth=2 ~ | sort -rh | head -10
+
+# 批量删除旧日志（比如 30 天前的 .out 和 .err 文件）
+find logs/ -name "*.out" -mtime +30 -delete
+find logs/ -name "*.err" -mtime +30 -delete
+\end{lstlisting}
+
+\begin{warnbox}
+集群的存储系统\textbf{不提供备份}，但会保留最近 90 天的每日快照（Snapshots），可以恢复最近误删或误改的文件。详情可参考 Tufts 官方的 File Recovery 教程。如果你有重要的实验结果，建议自己也备份一份到本地或云端。
+\end{warnbox}

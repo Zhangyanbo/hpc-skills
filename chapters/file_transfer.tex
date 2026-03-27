@@ -1,0 +1,118 @@
+%=============================================================================
+\section{文件传输：怎样上传和下载文件？}
+\label{sec:file-transfer}
+%=============================================================================
+
+这是使用 HPC 的第一步，也是很多教程忽略的重要环节。
+
+\subsection{场景一：传几个文件（用 scp）}
+
+\texttt{scp}（Secure Copy）是最简单的文件传输命令。它的语法和 \texttt{cp} 很像，只不过可以跨机器复制。
+
+\textbf{从本地上传到集群：}
+
+\begin{lstlisting}[language=bash]
+# 上传单个文件
+scp train.py your_utln@login-prod.pax.tufts.edu:~/project/
+
+# 上传整个目录（加 -r 参数）
+scp -r my_project/ your_utln@login-prod.pax.tufts.edu:~/project/
+\end{lstlisting}
+
+冒号后面的部分是集群上的目标路径。\texttt{\textasciitilde/} 表示你的 Home 目录。
+
+\textbf{从集群下载到本地：}
+
+\begin{lstlisting}[language=bash]
+# 下载单个文件
+scp your_utln@login-prod.pax.tufts.edu:~/project/results.csv ./
+
+# 下载整个结果目录
+scp -r your_utln@login-prod.pax.tufts.edu:~/project/results/ ./local_results/
+\end{lstlisting}
+
+\begin{tipbox}
+\texttt{scp} 的格式是 \texttt{scp 源路径 目标路径}，谁在前面谁就是``从哪里复制''。
+本地路径直接写，远程路径格式为 \texttt{用户名@主机:路径}。
+\end{tipbox}
+
+\subsection{场景二：传一个包含几十个文件的项目（用 rsync）}
+
+当你的项目有很多文件时，\texttt{rsync} 比 \texttt{scp} 更好用，因为它有两个重要优势：
+\begin{itemize}[nosep]
+  \item \textbf{增量同步}：只传输有变化的文件，不会重复传输没改过的文件
+  \item \textbf{断点续传}：如果中途断了，重新运行会从断点继续，不用从头来
+\end{itemize}
+
+\textbf{上传整个项目：}
+
+\begin{lstlisting}[language=bash]
+# -a: 保留文件属性   -z: 压缩传输   -P: 显示进度
+rsync -azP ./my_experiment/ \
+  your_utln@login-prod.pax.tufts.edu:~/project/my_experiment/
+\end{lstlisting}
+
+\textbf{下载实验结果：}
+
+\begin{lstlisting}[language=bash]
+rsync -azP your_utln@login-prod.pax.tufts.edu:~/project/results/ ./results/
+\end{lstlisting}
+
+\textbf{排除不需要的文件}（比如本地的虚拟环境或缓存）：
+
+\begin{lstlisting}[language=bash]
+rsync -azP --exclude='.venv' --exclude='__pycache__' --exclude='.git' \
+  ./my_experiment/ \
+  your_utln@login-prod.pax.tufts.edu:~/project/my_experiment/
+\end{lstlisting}
+
+\begin{tipbox}
+\textbf{推荐工作流}：每次修改完代码后，用 \texttt{rsync} 同步到集群。因为 rsync 只传改动的文件，所以即使项目很大也很快。
+\end{tipbox}
+
+\subsection{场景三：传输很大的数据集（用 Globus）}
+
+如果你需要传输几十 GB 甚至 TB 级别的数据，\texttt{scp} 和 \texttt{rsync} 都不太合适——它们走 SSH 通道，速度有限，而且长时间传输容易断。
+
+Tufts 推荐使用 \textbf{Globus}，一个专门用于科研数据传输的平台：
+
+\begin{enumerate}[nosep]
+  \item 访问 \url{https://www.globus.org/}，用 Tufts 账号登录
+  \item 设置两个``端点''（Endpoint）：一个是你的电脑（安装 Globus Connect Personal），一个是 Tufts HPC 的 Collection
+  \item 在网页界面上选择源和目标文件，点击传输
+  \item Globus 在后台完成传输，支持断点续传，\textbf{不需要保持网络连接}
+\end{enumerate}
+
+\begin{tipbox}
+Globus 的关键优势：``Fire and Forget''——发起传输后你可以关掉浏览器，它会在后台自动完成，完成后邮件通知你。使用 Globus 不需要 VPN。
+\end{tipbox}
+
+\subsection{场景四：小文件快速上传（用 OnDemand）}
+
+如果只是传个几 MB 的小文件，用 OnDemand 网页界面最方便：
+
+\begin{enumerate}[nosep]
+  \item 打开 \url{https://ondemand-prod.pax.tufts.edu/}
+  \item 点击 Files $\rightarrow$ Home Directory
+  \item 使用 Upload / Download 按钮
+\end{enumerate}
+
+\begin{warnbox}
+OnDemand 文件传输限制为\textbf{每个文件不超过 976MB}。大文件请用 rsync 或 Globus。
+\end{warnbox}
+
+\subsection{文件传输方式总结}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llll}
+\toprule
+场景 & 推荐工具 & 优势 & 限制 \\
+\midrule
+几个小文件 & \texttt{scp} & 简单直接 & 不支持续传 \\
+项目目录同步 & \texttt{rsync} & 增量、续传 & 需要 SSH 连接 \\
+超大数据集 & Globus & 后台传输、不限大小 & 需要配置端点 \\
+临时小文件 & OnDemand 网页 & 图形化、零配置 & 单文件 $<$ 976MB \\
+\bottomrule
+\end{tabular}
+\end{table}

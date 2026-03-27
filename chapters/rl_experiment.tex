@@ -1,0 +1,227 @@
+%=============================================================================
+\section{实战：强化学习实验矩阵}
+%=============================================================================
+
+现在我们把前面学到的知识串起来，实现一个完整的实验工作流。
+
+我们的实验是一个三维矩阵：
+
+\begin{itemize}[nosep]
+  \item \textbf{维度 1}：多个 RL 环境（CartPole, LunarLander, HalfCheetah, \ldots）
+  \item \textbf{维度 2}：多个算法/架构（PPO, SAC, DQN, \ldots）
+  \item \textbf{维度 3}：每组跑 $N$ 个随机种子（确保统计显著性）
+\end{itemize}
+
+目标：一键提交所有实验，自动记录结果，方便后续分析。
+
+\subsection{项目结构}
+
+先来看整个项目长什么样：
+
+\begin{lstlisting}
+project/
+  train.py              # 训练脚本，接受命令行参数
+  configs/
+    envs.txt            # 环境列表，每行一个
+    archs.txt           # 架构列表，每行一个
+  scripts/
+    run_matrix.sh       # SLURM Array Job 脚本
+    submit_all.sh       # 提交脚本
+  results/              # 程序输出的结果
+  logs/                 # SLURM 日志文件
+\end{lstlisting}
+
+\texttt{results/} 存放你程序写出的模型和指标，\texttt{logs/} 存放 SLURM 的标准输出和错误日志。两者分开管理比较清晰。
+
+\subsection{配置文件}
+
+用纯文本文件列出实验参数，方便修改，也方便脚本读取：
+
+\begin{lstlisting}[title={\texttt{configs/envs.txt}}]
+CartPole-v1
+LunarLander-v2
+HalfCheetah-v4
+Hopper-v4
+Walker2d-v4
+\end{lstlisting}
+
+\begin{lstlisting}[title={\texttt{configs/archs.txt}}]
+PPO
+SAC
+DQN
+TD3
+A2C
+\end{lstlisting}
+
+\subsection{训练脚本接口}
+
+\texttt{train.py} 需要接受命令行参数，这样 SLURM 脚本才能通过参数控制每次运行的内容：
+
+\begin{lstlisting}[language=python,title={\texttt{train.py}（参数部分）}]
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--env", type=str, required=True)
+parser.add_argument("--arch", type=str, required=True)
+parser.add_argument("--seed", type=int, required=True)
+parser.add_argument("--output-dir", type=str, default="results")
+args = parser.parse_args()
+
+# 结果保存到: results/{env}/{arch}/seed_{seed}/
+\end{lstlisting}
+
+关键设计：把环境、算法、种子都做成参数，这样同一个脚本就能覆盖所有实验组合。
+
+%=============================================================================
+\subsection{方案一：SLURM Array Job（推荐）}
+%=============================================================================
+
+SLURM Array Job 允许你\textbf{一次提交一批结构相同但参数不同的作业}。核心思路很简单：
+
+\begin{enumerate}[nosep]
+  \item 把三维矩阵（环境 $\times$ 架构 $\times$ 种子）展开为一个一维的数字索引 \texttt{0, 1, 2, ..., N-1}
+  \item SLURM 为每个索引创建一个独立的 Task，通过环境变量 \texttt{SLURM\_ARRAY\_TASK\_ID} 告诉脚本``你是第几号''
+  \item 脚本根据这个编号反推出对应的（环境, 架构, 种子）组合
+\end{enumerate}
+
+假设有 $E$ 个环境、$A$ 个架构、每组 $N$ 个种子，总任务数 $= E \times A \times N$。
+
+\begin{lstlisting}[language=slurm,title={\texttt{scripts/run\_matrix.sh}}]
+#!/bin/bash
+#SBATCH -J rl_matrix
+#SBATCH --time=00-12:00:00
+#SBATCH -p gpu,preempt
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16g
+#SBATCH --gres=gpu:1
+#SBATCH --output=logs/%x_%A_%a.out
+#SBATCH --error=logs/%x_%A_%a.err
+#SBATCH --mail-type=END,FAIL
+\end{lstlisting}
+
+注意 \texttt{--output} 里用了 \texttt{\%A}（主 Job ID）和 \texttt{\%a}（Task 序号），这样每个 Task 有独立的日志文件。
+
+\begin{lstlisting}[language=slurm]
+# ---- 配置 ----
+NUM_SEEDS=5
+
+# 读取环境和架构列表到数组
+mapfile -t ENVS < configs/envs.txt
+mapfile -t ARCHS < configs/archs.txt
+
+NUM_ENVS=${#ENVS[@]}
+NUM_ARCHS=${#ARCHS[@]}
+\end{lstlisting}
+
+\texttt{mapfile} 把文本文件逐行读入 Bash 数组。这样我们可以用索引来访问每个元素。
+
+\begin{lstlisting}[language=slurm]
+# ---- 从 SLURM_ARRAY_TASK_ID 解码实验参数 ----
+# 把一维索引还原为三维坐标，类似于把数组下标转换为行列号
+TASK_ID=${SLURM_ARRAY_TASK_ID}
+
+SEED=$((TASK_ID % NUM_SEEDS))          # 最内层：种子
+TASK_ID=$((TASK_ID / NUM_SEEDS))
+ARCH_IDX=$((TASK_ID % NUM_ARCHS))      # 中间层：架构
+ENV_IDX=$((TASK_ID / NUM_ARCHS))       # 最外层：环境
+
+ENV=${ENVS[$ENV_IDX]}
+ARCH=${ARCHS[$ARCH_IDX]}
+
+echo "=== Task ${SLURM_ARRAY_TASK_ID}: env=${ENV}, arch=${ARCH}, seed=${SEED} ==="
+\end{lstlisting}
+
+这段代码的逻辑和``把一个一维数组下标转成多维下标''完全一样（取余、整除），如果你学过数组的线性化存储就会觉得很熟悉。
+
+\begin{lstlisting}[language=slurm]
+# ---- 加载环境并运行 ----
+module load cuda/12.9.0
+module load miniforge/25.3.0
+conda activate rl_env
+
+python train.py \
+  --env "$ENV" \
+  --arch "$ARCH" \
+  --seed "$SEED" \
+  --output-dir "results/${ENV}/${ARCH}/seed_${SEED}"
+\end{lstlisting}
+
+\subsubsection{提交脚本}
+
+提交脚本负责计算总任务数，然后一条命令提交所有任务：
+
+\begin{lstlisting}[language=bash,title={\texttt{scripts/submit\_all.sh}}]
+#!/bin/bash
+# 计算总任务数
+NUM_ENVS=$(wc -l < configs/envs.txt)
+NUM_ARCHS=$(wc -l < configs/archs.txt)
+NUM_SEEDS=5
+
+TOTAL=$((NUM_ENVS * NUM_ARCHS * NUM_SEEDS))
+MAX_INDEX=$((TOTAL - 1))
+
+echo "Submitting ${TOTAL} tasks (${NUM_ENVS} envs x ${NUM_ARCHS} archs x ${NUM_SEEDS} seeds)"
+
+# 创建日志目录（必须提前存在，否则 SLURM 写日志会失败）
+mkdir -p logs results
+
+# 提交 Array Job
+sbatch --array=0-${MAX_INDEX} scripts/run_matrix.sh
+\end{lstlisting}
+
+以 5 环境 $\times$ 5 架构 $\times$ 5 种子为例，共 125 个任务，一条命令全部提交。
+
+\subsubsection{控制并发数}
+
+集群对每用户有 GPU 数量限制。用 \texttt{\%} 符号限制同时运行的 Array Task 数：
+
+\begin{lstlisting}[language=bash]
+# 最多同时跑 10 个任务（因为 gpu 分区每用户限 10 块 GPU）
+sbatch --array=0-124%10 scripts/run_matrix.sh
+\end{lstlisting}
+
+如果你同时用了 \texttt{preempt} 分区，上限可以到 20。
+
+%=============================================================================
+\subsection{方案二：嵌套循环提交}
+%=============================================================================
+
+如果不同实验需要不同的资源配置（比如 MuJoCo 环境需要更多内存），可以用脚本循环提交独立作业，对每组实验单独设置参数：
+
+\begin{lstlisting}[language=bash,title={\texttt{scripts/submit\_loop.sh}}]
+#!/bin/bash
+NUM_SEEDS=5
+
+while IFS= read -r ENV; do
+  while IFS= read -r ARCH; do
+    for SEED in $(seq 0 $((NUM_SEEDS - 1))); do
+      # 根据环境选择资源配置
+      if [[ "$ENV" == *"Cheetah"* || "$ENV" == *"Hopper"* || "$ENV" == *"Walker"* ]]; then
+        MEM="32g"
+        TIME="01-00:00:00"
+      else
+        MEM="8g"
+        TIME="00-04:00:00"
+      fi
+
+      sbatch \
+        -J "rl_${ENV}_${ARCH}_s${SEED}" \
+        --time=${TIME} \
+        -p gpu,preempt \
+        --gres=gpu:1 \
+        --cpus-per-task=4 \
+        --mem=${MEM} \
+        --output="logs/${ENV}_${ARCH}_s${SEED}.out" \
+        --error="logs/${ENV}_${ARCH}_s${SEED}.err" \
+        --wrap="module load cuda/12.9.0 && module load miniforge/25.3.0 && \
+                conda activate rl_env && \
+                python train.py --env ${ENV} --arch ${ARCH} --seed ${SEED} \
+                --output-dir results/${ENV}/${ARCH}/seed_${SEED}"
+    done
+  done < configs/archs.txt
+done < configs/envs.txt
+\end{lstlisting}
+
+\texttt{sbatch --wrap} 可以直接传入命令字符串作为作业内容，不需要单独写作业脚本文件。适合逻辑简单的场景。

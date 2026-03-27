@@ -1,0 +1,47 @@
+%=============================================================================
+\section{完整工作流总结}
+%=============================================================================
+
+\begin{enumerate}
+  \item \textbf{本地准备}：开发代码，准备好 \texttt{train.py}、配置文件和 SLURM 脚本
+
+  \item \textbf{上传到集群}：
+\begin{lstlisting}[language=bash]
+rsync -azP --exclude='.venv' --exclude='__pycache__' \
+  ./my_project/ your_utln@login-prod.pax.tufts.edu:~/project/
+\end{lstlisting}
+
+  \item \textbf{SSH 登录，设置环境}：
+\begin{lstlisting}[language=bash]
+ssh your_utln@login-prod.pax.tufts.edu
+module load miniforge/25.3.0 && module load cuda/12.9.0
+conda activate rl_env
+\end{lstlisting}
+
+  \item \textbf{交互式调试}——先跑一个任务确认一切正常：
+\begin{lstlisting}[language=bash]
+srun -p gpu -t 0-1:00:00 --gres=gpu:1 --mem=8g --cpus-per-task=4 --pty bash
+python train.py --env CartPole-v1 --arch PPO --seed 0 --output-dir test_run
+exit
+\end{lstlisting}
+
+  \item \textbf{用 seff 检查资源使用}，调整请求量
+
+  \item \textbf{批量提交所有实验}：
+\begin{lstlisting}[language=bash]
+bash scripts/submit_all.sh
+\end{lstlisting}
+
+  \item \textbf{监控进度}：
+\begin{lstlisting}[language=bash]
+squeue --me                           # 查看状态
+watch -n 60 'squeue --me | wc -l'     # 持续监控剩余任务数
+\end{lstlisting}
+
+  \item \textbf{下载结果}：
+\begin{lstlisting}[language=bash]
+# 在本地运行
+rsync -azP your_utln@login-prod.pax.tufts.edu:~/project/results/ ./results/
+python collect_results.py
+\end{lstlisting}
+\end{enumerate}

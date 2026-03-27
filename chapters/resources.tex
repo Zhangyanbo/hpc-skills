@@ -1,0 +1,149 @@
+%=============================================================================
+\section{集群资源概览}
+%=============================================================================
+
+\subsection{分区（Partition）}
+
+SLURM 把计算节点分成几组，叫做``分区''。不同分区有不同的用途和限制：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{llp{7cm}}
+\toprule
+分区 & 时间上限 & 说明 \\
+\midrule
+\texttt{batch} & 2 天 & 默认分区，仅 CPU。不允许请求 GPU。 \\
+\texttt{gpu} & 2 天 & GPU 分区。必须用 \texttt{--gres} 请求 GPU，不允许只跑 CPU 任务。 \\
+\texttt{preempt} & 2 天 & 资源最多（包含教授贡献的节点），但作业可能被节点所有者\textbf{抢占}——你的作业会被直接 kill。 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{每用户资源限制}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+分区组合 & CPU 核数上限 & 内存上限 & GPU 上限 \\
+\midrule
+\texttt{batch} + \texttt{gpu} & 250 & 5,000 GB & 10 \\
+\texttt{preempt} & 1,000 & 8,000 GB & 20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tipbox}
+可以同时指定多个分区做 fallback：\texttt{\#SBATCH -p gpu,preempt}。这样如果 \texttt{gpu} 分区没资源，会自动尝试 \texttt{preempt}。
+\end{tipbox}
+
+\subsection{可用 GPU}
+
+集群有多种型号的 GPU：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcl}
+\toprule
+GPU 型号 & 显存 & 适用场景 \\
+\midrule
+T4 & 16 GB & 小模型推理、轻量训练 \\
+L40 / L40s & 48 GB & 中等规模训练 \\
+A100-40G & 40 GB & 大规模训练 \\
+A100-80G & 80 GB & 大模型训练 \\
+H200 & 141 GB & 最大规模任务 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+请求特定型号的 GPU：
+
+\begin{lstlisting}[language=slurm]
+#SBATCH --gres=gpu:a100:1       # 请求 1 块 A100（不区分 40G/80G）
+#SBATCH --constraint="a100-80G" # 加上这行可以指定 80G 版本
+\end{lstlisting}
+
+\begin{warnbox}
+除非你的框架支持多 GPU 并行，否则\textbf{不要请求多块 GPU}——你只会浪费资源、延长排队时间。
+\end{warnbox}
+
+\subsection{怎样查看集群当前的资源占用情况？}
+
+在提交作业之前，你可能想知道：现在哪个分区有空闲资源？GPU 还剩多少？这可以帮你决定选哪个分区、请求什么类型的 GPU，避免排长队。
+
+\subsubsection{方法一：hpctools（推荐，最直观）}
+
+Tufts 提供了一个叫 \texttt{hpctools} 的辅助工具，用交互式菜单帮你查看各种信息：
+
+\begin{lstlisting}[language=bash]
+module load hpctools
+hpctools
+\end{lstlisting}
+
+运行后会显示一个菜单，输入编号选择功能：
+
+\begin{table}[h]
+\centering
+\begin{tabular}{cl}
+\toprule
+选项 & 功能 \\
+\midrule
+1 & 查看各分区可用的 CPU 核数和内存 \\
+2 & 查看各分区可用的 GPU 资源 \\
+3 & 查看某日期之后你的已完成作业历史 \\
+4 & 查看你当前运行的作业详情 \\
+5 & 查看 Research 存储的配额和用量 \\
+6 & 查看指定目录的详细空间占用 \\
+7 & 查看 Home 目录的空间占用明细 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+比如你想在提交 GPU 作业前看看还有多少 GPU 可用，选 \texttt{2} 就能看到各分区的 GPU 空闲情况。想检查自己的存储快满了没有，选 \texttt{5} 或 \texttt{7}。
+
+\subsubsection{方法二：sinfo（命令行快速查看）}
+
+如果你不想进交互式菜单，\texttt{sinfo} 可以一行命令看到集群状态：
+
+\begin{lstlisting}[language=bash]
+# 查看所有分区的节点状态概览
+sinfo
+
+# 只看 gpu 分区，显示空闲/占用/总计
+sinfo -p gpu -o "%P %a %D %C"
+\end{lstlisting}
+
+输出中 \texttt{\%C} 格式为 \texttt{已分配/空闲/其他/总计} 的 CPU 核数。
+
+查看 GPU 分区中各节点的具体 GPU 空闲情况：
+
+\begin{lstlisting}[language=bash]
+# 显示每个节点的 GPU 分配情况
+sinfo -p gpu -O NodeList,Gres,GresUsed,CPUsState,FreeMem
+\end{lstlisting}
+
+\subsubsection{方法三：OnDemand 网页界面}
+
+如果你偏好图形化界面，OnDemand 提供了两个有用的页面：
+
+\begin{itemize}[nosep]
+  \item \textbf{Clusters $\rightarrow$ System Status}：查看整个集群各分区的节点状态
+  \item \textbf{Jobs $\rightarrow$ Active Jobs}：查看你自己的作业运行情况，点击单个作业可以看详情，已完成的作业还能在 Resources and I/O 标签下看到 CPU 和内存的效率
+\end{itemize}
+
+\subsubsection{查看正在运行的作业的实时资源使用}
+
+如果你的作业已经在跑了，想看它实际占用了多少 CPU 和 GPU：
+
+\begin{lstlisting}[language=bash]
+# SSH 到作业所在的节点（先用 squeue --me 找到节点名）
+ssh pax006
+
+# 查看你的进程的 CPU 和内存使用
+top -u $USER
+
+# 查看 GPU 使用情况（在有 GPU 的节点上）
+nvidia-smi
+\end{lstlisting}
+
+\texttt{nvidia-smi} 会显示每块 GPU 的算力利用率、显存占用、以及正在使用 GPU 的进程。如果你发现 GPU 利用率很低（比如低于 30\%），可能说明你的程序瓶颈在数据加载而不是计算——可以尝试增加 \texttt{--cpus-per-task} 来加速数据预处理。

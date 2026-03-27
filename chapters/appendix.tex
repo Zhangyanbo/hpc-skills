@@ -1,0 +1,98 @@
+%=============================================================================
+\section{附录 A：常用 SLURM 命令速查}
+%=============================================================================
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+命令 & 功能 \\
+\midrule
+\texttt{sbatch script.sh} & 提交批处理作业 \\
+\texttt{squeue --me} & 查看自己的作业 \\
+\texttt{scancel JOBID} & 取消指定作业 \\
+\texttt{scancel -u \$USER} & 取消自己的所有作业 \\
+\texttt{seff JOBID} & 查看已完成作业的 CPU/内存效率 \\
+\texttt{sacct -j JOBID} & 查看作业详细信息 \\
+\texttt{scontrol show job JOBID} & 查看作业完整配置 \\
+\texttt{sinfo} & 查看集群节点状态 \\
+\texttt{nvidia-smi} & 查看 GPU 使用情况（在计算节点上） \\
+\bottomrule
+\end{tabular}
+\end{table}
+%=============================================================================
+\section{附录 B：常用 \texttt{\#SBATCH} 指令速查}
+%=============================================================================
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+指令 & 说明 \\
+\midrule
+\texttt{\#SBATCH -J name} & 作业名称 \\
+\texttt{\#SBATCH --time=DD-HH:MM:SS} & 最大运行时间（所有公共分区上限 2 天） \\
+\texttt{\#SBATCH -p partition} & 分区（可逗号分隔多个，如 \texttt{gpu,preempt}） \\
+\texttt{\#SBATCH -N 1} & 节点数（通常设 1） \\
+\texttt{\#SBATCH -n 1} & 任务数 \\
+\texttt{\#SBATCH --cpus-per-task=4} & 每任务 CPU 核数 \\
+\texttt{\#SBATCH --mem=16g} & 总内存 \\
+\texttt{\#SBATCH --gres=gpu:type:N} & GPU 请求（类型和数量） \\
+\texttt{\#SBATCH --constraint="..."} & 硬件约束（如 \texttt{a100-80G}） \\
+\texttt{\#SBATCH --array=0-99\%10} & Array Job，\%后为最大并发数 \\
+\texttt{\#SBATCH --output=\%x.\%j.out} & 标准输出文件 \\
+\texttt{\#SBATCH --error=\%x.\%j.err} & 标准错误文件 \\
+\texttt{\#SBATCH --mail-type=FAIL} & 邮件通知类型 \\
+\texttt{\#SBATCH --mail-user=email} & 通知邮箱 \\
+\bottomrule
+\end{tabular}
+\end{table}
+%=============================================================================
+\section{附录 C：致谢声明}
+%=============================================================================
+
+如果你的研究使用了 Tufts HPC 集群，请在论文中加入致谢：
+
+\begin{quote}
+\textit{The authors acknowledge the Tufts University High Performance Compute Cluster (\url{https://it.tufts.edu/high-performance-computing}) which was utilized for the research reported in this paper.}
+\end{quote}
+
+%=============================================================================
+\section{附录 D：使用规则——初学者容易踩的坑}
+\label{sec:policy}
+%=============================================================================
+
+HPC 集群受 Tufts \textit{Use of Information Systems Policy} 约束（完整版：\url{https://go.tufts.edu/hpc_aup}）。下面不列那些显而易见的规则，只说\textbf{初学者容易犯的错误}：
+
+\begin{description}[style=nextline,leftmargin=2em]
+
+  \item[不要把账号密码分享给同事]
+    即使是同一个实验室的人，也不能共用账号。每个人必须用自己的 UTLN 登录。如果你的同事需要访问集群，让他们自己申请账号。
+
+  \item[不要在集群上存放受限数据]
+    HIPAA（医疗数据）、FERPA（学生记录）等受保护的信息\textbf{禁止}存放在 HPC 集群上。如果你不确定你的数据是否属于受限类别，先联系 \texttt{tts-research@tufts.edu} 确认。
+
+  \item[不要在登录节点上跑计算]
+    在登录节点上直接跑 \texttt{python train.py} 会影响所有其他用户，管理员可能会直接终止你的进程。
+
+  \item[不要请求远超实际需要的资源]
+    ``反正是免费的，我多请求一点''——这个想法是错的。你请求的资源在作业运行期间是\textbf{独占的}，别人无法使用。请求 8 块 GPU 但只用了 1 块，意味着 7 块 GPU 白白浪费。用 \texttt{seff} 检查实际用量，下次按需请求。
+
+  \item[注意软件许可证]
+    集群上有些软件\textbf{不是开源的}（如 MATLAB、Mathematica），使用时需要遵守对应的许可协议。违反许可协议算违反使用政策。
+
+  \item[不要用 HPC 做商业用途]
+    集群只能用于 Tufts 相关的学术和研究活动。不能用来给外部公司跑计算、挖矿、或者任何商业盈利活动。
+
+  \item[毕业或离职前备份你的数据]
+    你离开 Tufts 后，账号访问权限会被取消。\textbf{提前}把需要的数据下载到本地或其他存储，不要等到最后一天。
+
+  \item[你在集群上的活动不是完全私密的]
+    Tufts 不会日常监控你的使用，但系统会记录日志。如果有合理理由怀疑违规，管理员可以\textbf{不通知你的情况下}查看你的活动记录和文件。
+
+\end{description}
+
+\begin{tipbox}
+以上规则的核心精神其实就一条：\textbf{这是一个共享资源，你的行为会影响其他人。}按需使用、不浪费、不越界，就不会有问题。
+\end{tipbox}

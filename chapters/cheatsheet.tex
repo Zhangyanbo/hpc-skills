@@ -1,0 +1,98 @@
+%=============================================================================
+\section*{日常速查表}
+\addcontentsline{toc}{section}{日常速查表}
+%=============================================================================
+
+以下是你在集群上最常用的操作，不需要翻教程正文，直接复制粘贴即可。
+
+\subsection*{连接与节点}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+操作 & 命令 \\
+\midrule
+SSH 登录 & \texttt{ssh your\_utln@login-prod.pax.tufts.edu} \\
+快速开一个 CPU 计算节点 & \texttt{srun -p batch -t 0-2:00:00 -n 2 --mem=4g --pty bash} \\
+快速开一个 GPU 计算节点 & \texttt{srun -p gpu -t 0-2:00:00 -n 2 --mem=4g --gres=gpu:1 --pty bash} \\
+退出计算节点 & \texttt{exit} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{tipbox}
+很多操作（查目录大小、安装 Conda 环境等）在登录节点上会很慢，\textbf{开一个 CPU 计算节点再操作会快很多}。
+\end{tipbox}
+
+\subsection*{作业管理}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+操作 & 命令 \\
+\midrule
+提交作业 & \texttt{sbatch script.sh} \\
+查看我的作业 & \texttt{squeue --me} \\
+取消某个作业 & \texttt{scancel JOBID} \\
+取消我的所有作业 & \texttt{scancel -u \$USER} \\
+查看已完成作业的效率 & \texttt{seff JOBID} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{资源与存储}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+操作 & 命令 \\
+\midrule
+查看我的配额（实时刷新） & \texttt{watch -n 5 quota -s} \\
+查看 Home 目录各文件夹大小 & \texttt{du -sh \textasciitilde/* \textasciitilde/.* 2>/dev/null | sort -rh | head -20} \\
+查看集群 GPU 空闲情况 & \texttt{module load hpctools \&\& hpctools}（选 2） \\
+查看各分区状态 & \texttt{sinfo} \\
+查看 GPU 使用（在计算节点上） & \texttt{nvidia-smi} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{文件传输（在本地电脑上运行）}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+操作 & 命令 \\
+\midrule
+上传项目目录 & \texttt{rsync -azP ./project/ user@login-prod.pax.tufts.edu:\textasciitilde/project/} \\
+下载结果 & \texttt{rsync -azP user@login-prod.pax.tufts.edu:\textasciitilde/project/results/ ./results/} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{环境管理}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+操作 & 命令 \\
+\midrule
+加载 Conda & \texttt{module load miniforge/25.3.0} \\
+激活环境 & \texttt{conda activate rl\_env} \\
+清理 uv 缓存（容易撑满配额） & \texttt{rm -rf \textasciitilde/.cache/uv} \\
+清理 pip 缓存 & \texttt{rm -rf \textasciitilde/.cache/pip} \\
+清理 conda 包缓存 & \texttt{conda clean --all -y} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
