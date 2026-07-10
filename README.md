@@ -10,13 +10,14 @@ Once a skill is installed, you can simply tell your agent things like:
 >
 > "Grab the results back and plot them."
 
-…and the agent handles the rest: uploading your code, setting up the environment, writing and submitting SLURM jobs, watching the queue, and downloading the results — while strictly following your cluster's rules of conduct.
+…and the agent handles the rest: uploading your code, setting up the environment, writing and submitting jobs (SLURM `sbatch`, or a scheduler-specific equivalent like RunAI), watching the queue, and downloading the results — while strictly following your cluster's rules of conduct.
 
 ## Available skills
 
 | School | Skill | Notes |
 |---|---|---|
 | Tufts University | [`skills/tufts-hpc/`](skills/tufts-hpc/) | SLURM cluster (`login-prod.pax.tufts.edu`); includes a beginner-friendly companion manual in Chinese under [`manual/`](manual/) |
+| EPFL | [`skills/epfl-haas/`](skills/epfl-haas/) | RunAI/Kubernetes GPU cluster, not SLURM — node pools instead of partitions, PVC-backed persistent storage, `runai` CLI |
 
 Every cluster has its own quirks — module names, partition limits, storage quotas, scheduler settings that generic tutorials never mention. Each skill here captures those hard-won details for one specific cluster.
 
