@@ -12,10 +12,7 @@
 *.snm
 *.vrb
 
-# Shell scripts
-*.sh
-
-# Project management
+# Project management / private notes (never publish)
 CLAUDE.md
 
 # OS files

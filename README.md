@@ -1,35 +1,64 @@
-# Tufts HPC 集群使用教程
+# HPC Skills
 
-面向 Tufts University 研究生的 HPC 集群中文使用教程，以强化学习实验为例，从零开始讲解。
+Skills that teach AI coding agents (such as [Claude Code](https://claude.com/claude-code)) how to use **university HPC clusters** for you — safely and by the rules.
 
-## 下载
+Once a skill is installed, you can simply tell your agent things like:
 
-直接查看编译好的 PDF：[**tutorial.pdf**](tutorial.pdf)
+> "Run this training script on the HPC."
+>
+> "How are my cluster jobs doing?"
+>
+> "Grab the results back and plot them."
 
-## 内容概览
+…and the agent handles the rest: uploading your code, setting up the environment, writing and submitting SLURM jobs, watching the queue, and downloading the results — while strictly following your cluster's rules of conduct.
 
-- **速查表** — 日常命令一页速查
-- **Quick Start** — 5 步跑起第一个作业
-- **连接集群** — SSH、免密登录、跳板机（免 VPN）
-- **SLURM 作业管理** — 脚本编写、提交、输出文件、交互式调试
-- **文件传输** — scp、rsync、Globus、OnDemand
-- **软件环境** — Module 系统、Conda、uv
-- **存储管理** — Home 目录 vs Research 存储、配额
-- **集群资源** — 分区、GPU 类型、监控工具
-- **SLURM 哲学** — 为什么需要调度器（餐厅类比）
-- **实战案例** — 用 Array Job 跑 RL 实验矩阵
-- **实用技巧** — preempt 分区、断点续训、邮件通知
+## Available skills
 
-## 编译
+| School | Skill | Notes |
+|---|---|---|
+| Tufts University | [`skills/tufts-hpc/`](skills/tufts-hpc/) | SLURM cluster (`login-prod.pax.tufts.edu`); includes a beginner-friendly companion manual in Chinese under [`manual/`](manual/) |
 
-需要 XeLaTeX 和 ctex 宏包：
+Every cluster has its own quirks — module names, partition limits, storage quotas, scheduler settings that generic tutorials never mention. Each skill here captures those hard-won details for one specific cluster.
 
-```bash
-xelatex tutorial.tex && xelatex tutorial.tex
-```
+## Install
 
-## 许可证
+1. Clone this repository.
+2. Copy (or symlink) your school's skill folder into your agent's skills directory. For Claude Code:
 
-本教程以 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) 许可证发布。
+   ```bash
+   ln -s /path/to/this-repo/skills/tufts-hpc ~/.claude/skills/tufts-hpc
+   ```
 
-教程内容基于 [Tufts HPC 官方文档](https://rtguides.it.tufts.edu/hpc/)编写，集群相关信息的版权归 Tufts University 所有。
+3. That's it. The next time you mention the HPC, the agent picks the skill up automatically.
+
+## First use
+
+The skills never store personal information in this repository. On first use, a skill walks you through creating a small private config file on your own machine (e.g. `~/.config/tufts-hpc/config`) holding your SSH host and username.
+
+Two things you need:
+
+- **An account on your cluster** (for Tufts: a UTLN and access to `login-prod.pax.tufts.edu`).
+- **Passwordless SSH** (key-based login). The skill checks this automatically and tells you how to set it up if it's missing — without it, the agent can't operate unattended.
+
+## Safety
+
+These skills treat cluster policy as their highest priority. They are built to *never* get you in trouble:
+
+- No computation on login nodes — heavy work always goes through a compute node.
+- Gentle on the scheduler: status polling is rate-limited, commands are batched.
+- Stays well below job and storage quotas.
+- Destructive actions (bulk deletes, cancelling jobs) always ask you first.
+- Your credentials never leave your machine, and never enter this repository.
+
+## Contributing: add your school
+
+Contributions are very welcome! If you've figured out your own cluster's quirks, turn them into a skill so everyone at your school (and their agents) can benefit:
+
+1. Create `skills/<your-school>-hpc/` following the structure of [`skills/tufts-hpc/`](skills/tufts-hpc/): a `SKILL.md` (connection preflight + compliance rules + task routing), `references/` for the details, and a `scripts/preflight.sh`.
+2. Keep it **fully de-sensitized** — no usernames, hostnames aliases, or personal paths. All account details belong in the user's local config file (`~/.config/<skill-name>/config`), never in the repo.
+3. Capture what generic SLURM tutorials don't: your cluster's module names, partition/QoS limits, array-job caps, storage layout, and the local etiquette that keeps accounts in good standing.
+4. Open a pull request.
+
+## License
+
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Cluster-specific information is based on each school's official HPC documentation (for Tufts: [rtguides.it.tufts.edu/hpc](https://rtguides.it.tufts.edu/hpc/)), whose copyright belongs to the respective university.
