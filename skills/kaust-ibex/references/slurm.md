@@ -42,12 +42,19 @@ set -euo pipefail
 # use project-root-relative paths.
 cd "${SLURM_SUBMIT_DIR}"
 
-# Activate the environment explicitly — do not rely on .bashrc being sourced
-# in a non-interactive SLURM shell.
+.venv/bin/python src/train.py --seed 0
+```
+
+This example uses a uv-managed `.venv` (invoking `.venv/bin/python` directly,
+per deploy.md — do not mix this with `conda activate`, since calling the venv
+interpreter by absolute path bypasses whatever conda env was just activated).
+If the project uses conda/mamba instead, activate it explicitly and call
+`python` (not `.venv/bin/python`), never both in the same script:
+
+```bash
 source <path-to-conda-or-mamba-init-script>
 conda activate <env-name>
-
-.venv/bin/python src/train.py --seed 0
+python src/train.py --seed 0
 ```
 
 Key points:
