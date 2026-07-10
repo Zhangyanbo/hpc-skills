@@ -162,3 +162,38 @@ Standard loop skeleton:
   belong in research storage, not home.
 - Conda: `module load miniforge/25.3.0` (there is **no** `module load python`).
 - Interactive session QOS: max 4 hours, max 1 GPU.
+
+## 6. Off-campus access (knowledge, not an operation)
+
+This section is background to *explain* when the user asks about connection
+problems — it is not something this skill configures or performs on its own.
+The skill always just uses `$HPC_HOST`; whether that route goes through a VPN
+or a jump host is the user's local SSH client configuration, entirely outside
+the skill's operational scope.
+
+The login nodes are only reachable from the campus network. From off campus,
+the official route is the Tufts VPN. A common pain point: the VPN can be slow
+or flaky, and without it the cluster is unreachable. If the user controls an
+on-campus machine that is reachable from the internet (e.g. a lab server
+exposed via ngrok or similar), they can route SSH through it with `ProxyJump`
+in their local `~/.ssh/config`:
+
+```ssh-config
+# Jump host: an on-campus machine the user controls
+Host my_jump_server
+    HostName <server_address>
+    User <username>
+    Port <port>
+
+# HPC via the jump host
+Host hpc
+    HostName login-prod.pax.tufts.edu
+    User <your_utln>
+    ProxyJump my_jump_server
+```
+
+After `ssh-copy-id` to **both** the jump host and the HPC, `ssh hpc` is
+transparent, passwordless, and VPN-free — and everything in this skill works
+unchanged, since the jump is invisible above the SSH layer. If the user asks
+for this setup, help them edit their local ssh config; never store the jump
+host's details anywhere in a repository.
