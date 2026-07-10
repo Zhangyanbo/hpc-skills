@@ -17,6 +17,7 @@ Once a skill is installed, you can simply tell your agent things like:
 | School | Skill | Notes |
 |---|---|---|
 | Tufts University | [`skills/tufts-hpc/`](skills/tufts-hpc/) | SLURM cluster (`login-prod.pax.tufts.edu`); includes a beginner-friendly companion manual in Chinese under [`manual/`](manual/) |
+| Northwestern University | [`skills/northwestern-quest/`](skills/northwestern-quest/) | Quest SLURM cluster; per-PI GPU allocations spanning multiple GPU generations, `/scratch` auto-purge, and an idempotent submit pattern for experiment matrices |
 
 Every cluster has its own quirks — module names, partition limits, storage quotas, scheduler settings that generic tutorials never mention. Each skill here captures those hard-won details for one specific cluster.
 
