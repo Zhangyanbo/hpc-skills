@@ -42,13 +42,20 @@ set -euo pipefail
 # use project-root-relative paths.
 cd "${SLURM_SUBMIT_DIR}"
 
-# Activate the environment explicitly — do not rely on .bashrc being sourced
-# in a non-interactive SLURM shell.
+.venv/bin/python src/train.py --seed 0
+```
+
+This example uses a uv-managed `.venv` (invoking `.venv/bin/python` directly,
+per §5 of deploy.md — do not mix this with `conda activate`, since calling the
+venv interpreter by absolute path bypasses whatever conda env was just
+activated). If the project uses conda/mamba instead, activate it explicitly
+and call `python` (not `.venv/bin/python`), never both in the same script:
+
+```bash
 source <path-to-conda-or-mamba-init-script>
 conda activate <env-name>
 export PYTHONNOUSERSITE=1
-
-.venv/bin/python src/train.py --seed 0
+python src/train.py --seed 0
 ```
 
 Key points:
@@ -94,10 +101,14 @@ ssh "$QUEST_HOST" "ssh <node> 'nvidia-smi --query-gpu=utilization.gpu,memory.use
 must survive an SSH disconnect on an interactive allocation, use:
 
 ```bash
+# QUEST_ALLOCATION_ROOT is a *local* config value — interpolate it locally
+# before it reaches the remote shell; it is not defined in the node's
+# environment, so a literal "\$QUEST_ALLOCATION_ROOT" inside the remote
+# quoting would expand to empty on the node.
 ssh "$QUEST_HOST" "ssh <node> 'nohup bash -c \"
   source <conda-init-script>
   conda activate <env>
-  cd \$QUEST_ALLOCATION_ROOT/project
+  cd ${QUEST_ALLOCATION_ROOT}/project
   python train.py <args>
 \" </dev/null >logs/<run>.log 2>&1 & disown; sleep 2; ps aux | grep train | grep -v grep'"
 ```
