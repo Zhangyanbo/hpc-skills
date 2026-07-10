@@ -23,10 +23,10 @@ Every cluster has its own quirks — module names, partition limits, storage quo
 ## Install
 
 1. Clone this repository.
-2. Copy (or symlink) your school's skill folder into your agent's skills directory. For Claude Code:
+2. Copy your school's skill folder into your agent's skills directory. For Claude Code:
 
    ```bash
-   ln -s /path/to/this-repo/skills/tufts-hpc ~/.claude/skills/tufts-hpc
+   cp -r /path/to/this-repo/skills/tufts-hpc ~/.claude/skills/
    ```
 
 3. That's it. The next time you mention the HPC, the agent picks the skill up automatically.
