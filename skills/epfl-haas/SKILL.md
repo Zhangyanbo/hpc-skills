@@ -44,6 +44,9 @@ Branch on its output:
     host used to run `runai` commands. Use it everywhere:
     `ssh "$HAAS_HOST" ...`
   - `HAAS_USER` — the user's login
+  - `HAAS_PROJECT` — the RunAI project every submission is scoped to; ensure
+    it is active (`runai config project "$HAAS_PROJECT"`) or pass
+    `-p "$HAAS_PROJECT"` per command
   - `HAAS_PVC_ROOT` — durable PVC-backed project storage root (a project's
     own remote path, if recorded in that project's CLAUDE.md, takes
     precedence)
@@ -64,7 +67,11 @@ Branch on its output:
 2. Test passwordless login:
    `ssh -o BatchMode=yes -o ConnectTimeout=10 <host> 'echo OK && hostname'`.
 3. On success, write `~/.config/epfl-haas/config` (template in the header of
-   `scripts/preflight.sh`) and `chmod 600` it.
+   `scripts/preflight.sh`, including `HAAS_PROJECT`) and `chmod 600` it.
+   Verify the `runai` CLI is actually available and authenticated where the
+   skill will run it: `ssh <host> 'command -v runai && runai whoami'` — if
+   `runai` is missing on the SSH host, the user runs the CLI locally and this
+   must be sorted out with them before any automation.
 4. On failure, follow NO_PASSWORDLESS above; do not write
    `HAAS_PASSWORDLESS=yes`.
 
@@ -125,7 +132,7 @@ ssh "$HAAS_HOST" 'runai list jobs; echo ---; runai whoami'
 | Jobs and their status | `runai list jobs` |
 | One job's detail (submit command, node, events) | `runai describe job <name>` |
 | Live logs | `runai logs <name>` |
-| Node-pool / GPU availability | `runai list nodepools` (or the cluster's equivalent inspection command) |
+| Node-pool / GPU availability | `runai nodepool list` on newer CLIs; check `runai list --help` for this cluster's variant |
 | Current login/auth state | `runai whoami` |
 | Cancel/delete a job | `runai delete job <name>` |
 

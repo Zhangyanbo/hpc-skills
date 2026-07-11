@@ -65,7 +65,9 @@ Key points:
   job dies instantly with no log at all.
 - Submit from the project root on the cluster:
   ```bash
-  ssh "$QUEST_HOST" 'cd "$QUEST_ALLOCATION_ROOT"/project && mkdir -p logs && sbatch scripts/job.sh'
+  # $QUEST_ALLOCATION_ROOT is a *local* config value — expand it locally
+  # (double quotes), never inside remote single quotes where it is undefined.
+  ssh "$QUEST_HOST" "cd '$QUEST_ALLOCATION_ROOT/project' && mkdir -p logs && sbatch scripts/job.sh"
   ```
   Capture the printed `Submitted batch job <id>` — that job id scopes all
   later monitoring/cancelling for this task.
@@ -74,31 +76,36 @@ GPU jobs: request the GPU generation explicitly if the project depends on it
 (older CUDA/torch stacks may not run correctly on newer GPU generations, or
 vice versa); check availability first with `sinfo -p <partition> -o "%n %G %t"`.
 
-## 3. Interactive placeholder allocations
+## 3. Interactive sessions for debugging
 
-**Pattern**: Keep one or more long-running `salloc` interactive jobs alive as
-GPU placeholders, and SSH directly to the reserved node for short debugging
-instead of submitting a new batch job and waiting in the queue.
+For short debugging or environment setup, request an interactive allocation —
+on Quest, `srun`/`salloc` **require `--account` and `--partition`**:
 
 ```bash
-ssh "$QUEST_HOST" 'squeue -u <netid>'
-# Look for RUNNING jobs with a bash/interactive command; note their NodeList
+ssh "$QUEST_HOST" 'srun --account=<allocationID> --partition=short --time=1:00:00 -c 2 --mem=4G --pty bash'
 ```
 
-**Verify a node is genuinely idle before reusing it**:
+If an interactive allocation from a previous task is *already running* (check
+`squeue -u <netid>` for RUNNING jobs with a bash/interactive command and note
+their NodeList), reuse it via `ssh <node>` instead of requesting a new one.
+Verify the node's GPUs are genuinely idle before reusing:
 
 ```bash
 ssh "$QUEST_HOST" "ssh <node> 'nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader'"
 ```
 
-**Caution**: placeholder allocations count against per-user GPU quota
-(`QOSMaxGRESPerUser` or similar). Too many placeholders will block new
-`sbatch` jobs from starting.
+**Never keep idle interactive allocations alive as "placeholders" to skip the
+queue** — holding GPUs you are not using is exactly the behavior that draws
+administrator attention, and it also counts against your per-user GPU quota
+(`QOSMaxGRESPerUser` or similar), blocking your own `sbatch` jobs. Release an
+interactive allocation (`exit` / `scancel`) as soon as the debugging session
+is done.
 
 ## 4. Background processes without tmux
 
-`tmux` is not available on Quest compute nodes. For a long-running process that
-must survive an SSH disconnect on an interactive allocation, use:
+`tmux` may not be available on Quest compute nodes (check with `command -v
+tmux`). If it is absent, for a long-running process that must survive an SSH
+disconnect on an interactive allocation, use:
 
 ```bash
 # QUEST_ALLOCATION_ROOT is a *local* config value — interpolate it locally
@@ -110,7 +117,7 @@ ssh "$QUEST_HOST" "ssh <node> 'nohup bash -c \"
   conda activate <env>
   cd ${QUEST_ALLOCATION_ROOT}/project
   python train.py <args>
-\" </dev/null >logs/<run>.log 2>&1 & disown; sleep 2; ps aux | grep train | grep -v grep'"
+\" </dev/null >${QUEST_ALLOCATION_ROOT}/project/logs/<run>.log 2>&1 & disown; sleep 2; ps aux | grep train | grep -v grep'"
 ```
 
 Verify after launch: process alive (`ps aux | grep <script>`), GPU active
@@ -179,8 +186,8 @@ Adapt names/decoding to the actual experiment; keep the three structural ideas:
 single config source, per-task missing-result scan, early-exit idempotence.
 The job script must *create* the `.done`/result file only on success (last
 step). For very large matrices, consider SLURM array jobs instead of one
-`sbatch` per task — check the cluster's live `MaxArraySize` and `--array`
-string-length limits with `sinfo`/site docs before assuming a specific number.
+`sbatch` per task — check the cluster's live `MaxArraySize` with
+`scontrol show config | grep -i maxarraysize` before assuming a specific number.
 
 ## 6. Monitoring, debugging, cancelling
 

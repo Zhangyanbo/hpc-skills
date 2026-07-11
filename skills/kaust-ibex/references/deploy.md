@@ -7,13 +7,14 @@ Everything here assumes preflight passed and `IBEX_HOST` is loaded from
 
 | Location | Use for |
 |---|---|
-| Login home `/home/<username>` | code, small configs, job scripts, ssh keys |
-| Durable project storage `/ibex/user/<username>` (`$IBEX_PROJECT_ROOT`) | conda/uv envs, datasets, checkpoints, results |
+| Login home `/home/<username>` (200 GB + a file-count quota) | code, small configs, job scripts, ssh keys |
+| Durable project storage `/ibex/user/<username>` (1.5 TB per user; `$IBEX_PROJECT_ROOT`) | conda/uv envs, datasets, checkpoints, results |
 | `/tmp` on the login/frontend host | local temporary storage only — never durable |
 
-- Do not conflate `/home/<username>` (login home, typically small and
-  filesystem-separate) with `/ibex/user/<username>` (the durable project
-  root) — they live on different filesystems with different characteristics.
+- Do not conflate `/home/<username>` (login home; note the **file-count
+  quota** — many small files, e.g. a conda env, can hit it before the byte
+  quota) with `/ibex/user/<username>` (the durable project root) — they live
+  on different filesystems with different characteristics.
 - Storage on the project filesystem can run close to capacity across the
   whole cluster's users; check usage (`df -h /ibex/user` or the cluster's
   official quota tool) before large writes, and clean caches

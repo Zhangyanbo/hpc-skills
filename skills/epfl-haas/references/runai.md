@@ -13,9 +13,10 @@ free" — on some EPFL RunAI setups it effectively pins to one specific GPU
 class (e.g. a high-memory A100 pool). Before launching many jobs:
 
 1. Decide the minimum acceptable GPU class for the experiment.
-2. Inspect current node pools and their GPU classes (`runai list nodepools`
-   or the cluster's equivalent) rather than assuming a fixed set from a
-   previous project.
+2. Inspect current node pools and their GPU classes — the exact command
+   depends on the CLI generation (`runai nodepool list` on newer CLIs; check
+   `runai list --help` / `runai --help` for what this cluster's version
+   offers) rather than assuming a fixed set from a previous project.
 3. Pass node pools explicitly and, where the CLI supports it, as an ordered
    priority list — prefer a compatible, less-contended pool when the job
    doesn't need the largest/most contended GPU class.
@@ -76,8 +77,10 @@ for task_id in "${TASK_IDS[@]}"; do
   [[ -f "$out" ]] && continue
   runai submit "job-${task_id}" \
     --image <project-image> \
+    --gpu 1 --cpu 4 --memory 16G \
+    --run-as-uid <uid> --run-as-gid <gid> \
     --node-pools <ordered-pool-list> \
-    --pvc <claim-name>:<mount-path> \
+    --existing-pvc claimname=<claim-name>,path=<mount-path> \
     --command -- bash -lc "cd <mount-path>/project && ./run_task.sh ${task_id}"
 done
 ```
@@ -92,7 +95,15 @@ touch "$OUT"
 
 Adapt image/mount/command flags to the cluster's actual `runai submit`
 syntax — verify current flag names against `runai submit --help` rather than
-assuming these are stable across RunAI versions.
+assuming these are stable across RunAI versions. Notes on the flags above:
+
+- RunAI defaults to **0 GPUs** — omit `--gpu` and you get a CPU-only pod.
+- Without `--run-as-uid`/`--run-as-gid` (find them with `id` on the SSH
+  host), files the pod writes to the PVC come out root-owned — a classic
+  newcomer trap.
+- The old `--pvc <claim>:<mount>` syntax is deprecated (and its legacy format
+  actually *created* a PVC); mounting an existing claim uses
+  `--existing-pvc claimname=...,path=...` on current CLI versions.
 
 ## 5. Monitoring, debugging, cancelling
 

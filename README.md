@@ -17,8 +17,8 @@ Once a skill is installed, you can simply tell your agent things like:
 | School | Skill | Notes |
 |---|---|---|
 | Tufts University | [`skills/tufts-hpc/`](skills/tufts-hpc/) | SLURM cluster (`login-prod.pax.tufts.edu`); includes a beginner-friendly companion manual in Chinese under [`manual/`](manual/) |
-| Northwestern University | [`skills/northwestern-quest/`](skills/northwestern-quest/) | Quest SLURM cluster; per-PI GPU allocations spanning multiple GPU generations, `/scratch` auto-purge, and an idempotent submit pattern for experiment matrices |
-| KAUST | [`skills/kaust-ibex/`](skills/kaust-ibex/) | Ibex SLURM cluster; multi-generation GPU partitions (A100/V100), persistent dev-server-style allocations, idempotent submit pattern for experiment matrices |
+| Northwestern University | [`skills/northwestern-quest/`](skills/northwestern-quest/) | Quest SLURM cluster; `gengpu` partition with mixed GPU generations, `/scratch` auto-purge, and an idempotent submit pattern for experiment matrices |
+| KAUST | [`skills/kaust-ibex/`](skills/kaust-ibex/) | Ibex SLURM cluster; single `batch` partition with GPU selection via `--constraint` (A100/V100/…), idempotent submit pattern for experiment matrices |
 | EPFL | [`skills/epfl-haas/`](skills/epfl-haas/) | RunAI/Kubernetes GPU cluster, not SLURM — node pools instead of partitions, PVC-backed persistent storage, `runai` CLI |
 
 Every cluster has its own quirks — module names, partition limits, storage quotas, scheduler settings that generic tutorials never mention. Each skill here captures those hard-won details for one specific cluster.

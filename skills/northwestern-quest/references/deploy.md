@@ -7,9 +7,9 @@ Everything here assumes preflight passed and `QUEST_HOST` is loaded from
 
 | Location | Quota | Use for |
 |---|---|---|
-| Login home `/home/<netid>` | Small, per-user | code, small configs, job scripts, ssh keys |
-| Project allocation `/projects/<allocation>/<netid>` (`$QUEST_ALLOCATION_ROOT`) | Set per PI allocation | conda/uv envs, datasets, checkpoints, results |
-| `/scratch/<netid>` (`$QUEST_SCRATCH_ROOT`) | Large, but **auto-purged** (commonly ~30 days) | temporary large intermediate outputs only |
+| Login home `/home/<netid>` | 80 GB, per-user | code, small configs, job scripts, ssh keys |
+| Project allocation `/projects/<allocationID>` (`$QUEST_ALLOCATION_ROOT`) | Set per PI allocation (typically 1–2 TB); **shared by all allocation members** | conda/uv envs, datasets, checkpoints, results |
+| `/scratch/<netid>` (`$QUEST_SCRATCH_ROOT`) | 5 TB, but **auto-purged** (files unmodified for ~30 days) | temporary large intermediate outputs only |
 
 - If `QUEST_ALLOCATION_ROOT` is empty in the config, the user has no project
   allocation yet — warn them before writing anything large, and suggest they

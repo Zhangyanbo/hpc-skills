@@ -5,32 +5,27 @@ Everything here assumes preflight passed and `IBEX_HOST` is loaded from
 
 ## 1. Partitions and limits
 
-Ibex commonly exposes several GPU-oriented partitions with different time
-limits and hardware mixes (e.g. a short debug lane, a general GPU lane, and
-longer-running lanes with tighter time caps), plus a general CPU partition.
-Do not hardcode a partition name, time limit, or assumed GPU generation from a
-previous project — always verify live:
+Ibex uses a **single default `batch` partition** for both CPU and GPU jobs —
+there is no separate GPU partition. You select hardware, not a partition:
+request GPUs with `--gpus=N` (or `--gres=gpu:1`) and pin the generation with
+`--constraint=<gpu-type>` (documented constraint names include `a100`, `v100`,
+`rtx2080ti`, `gtx1080ti`, and combos like `v100&gpu_ai`). The wall-time cap is
+uniform (14 days for affiliated users). Constraint names and limits can drift —
+verify live before relying on them:
 
 ```bash
 sinfo -o "%P %l %D %c %m %G"
+sinfo -o "%n %G %f %t" | head    # available feature/GRES strings per node
 ```
-
-Interactive sessions (`salloc`/`srun --pty`) are typically capped at a much
-shorter wall time than batch partitions — check current limits rather than
-assuming a fixed number.
-
-When a job must target a specific GPU generation (e.g. A100 vs V100), request
-it explicitly with `--constraint=<gpu-type>` or the cluster's equivalent
-feature flag, and confirm the available feature/GRES strings against
-`sinfo -o "%n %G %f %t"` for the target partition.
 
 ## 2. A minimal correct job script
 
 ```bash
 #!/usr/bin/env bash
 #SBATCH --job-name=<descriptive-name>
-#SBATCH --partition=<gpu-partition>
+#SBATCH --partition=batch
 #SBATCH --gres=gpu:1
+#SBATCH --constraint=<gpu-type>   # e.g. a100 or v100; see §1
 #SBATCH --time=04:00:00
 #SBATCH --mem=40G
 #SBATCH --cpus-per-task=4
@@ -64,13 +59,15 @@ Key points:
   the job dies instantly with no log at all.
 - Submit from the project root on the cluster:
   ```bash
-  ssh "$IBEX_HOST" 'cd "$IBEX_PROJECT_ROOT"/project && mkdir -p logs && sbatch scripts/job.sh'
+  # $IBEX_PROJECT_ROOT is a *local* config value — expand it locally
+  # (double quotes), never inside remote single quotes where it is undefined.
+  ssh "$IBEX_HOST" "cd '$IBEX_PROJECT_ROOT/project' && mkdir -p logs && sbatch scripts/job.sh"
   ```
   Capture the printed `Submitted batch job <id>` — that job id scopes all
   later monitoring/cancelling for this task.
 
 GPU jobs: request the GPU generation explicitly if the project depends on it,
-and check availability first with `sinfo -p <partition> -o "%n %G %f %t"`.
+and check availability first with `sinfo -o "%n %G %f %t"`.
 
 ## 3. Interactive sessions and persistent dev-server allocations
 
@@ -143,8 +140,9 @@ done
 ```bash
 #!/usr/bin/env bash
 #SBATCH --job-name=exp-matrix
-#SBATCH --partition=<gpu-partition>
+#SBATCH --partition=batch
 #SBATCH --gres=gpu:1
+#SBATCH --constraint=<gpu-type>
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/job_%j.out
 set -euo pipefail
@@ -161,8 +159,8 @@ ideas: single config source, per-task missing-result scan, early-exit
 idempotence. The job script must *create* the `.done`/result file only on
 success (last step). For very large matrices, consider SLURM array jobs
 instead of one `sbatch` per task — check the cluster's live `MaxArraySize`
-and `--array` string-length limits with `sinfo`/site docs before assuming a
-specific number.
+with `scontrol show config | grep -i maxarraysize` before assuming a specific
+number.
 
 ## 5. Monitoring, debugging, cancelling
 

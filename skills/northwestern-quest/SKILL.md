@@ -38,8 +38,9 @@ Branch on its output:
     `ssh "$QUEST_HOST" ...`, `rsync ... "$QUEST_HOST":...`
   - `QUEST_NETID` — the user's Northwestern NetID
   - `QUEST_ALLOCATION_ROOT` — default project storage root, e.g.
-    `/projects/<allocation>/<netid>` (a project's own remote path, if recorded
-    in that project's CLAUDE.md, takes precedence)
+    `/projects/<allocationID>` or a subdirectory of it the user works in (a
+    project's own remote path, if recorded in that project's CLAUDE.md, takes
+    precedence)
   - `QUEST_SCRATCH_ROOT` — `/scratch/<netid>` (auto-purged; see storage notes)
 - `NO_CONFIG` — first use on this machine; run "Guided setup" below.
 - `NO_PASSWORDLESS` — key-based login is broken. **Stop all automated Quest
@@ -56,8 +57,11 @@ Branch on its output:
    `ssh -o BatchMode=yes -o ConnectTimeout=10 <host> 'echo OK && hostname'`.
 4. On success, write `~/.config/quest-hpc/config` (template in the header of
    `scripts/preflight.sh`) and `chmod 600` it. Also probe for the project
-   allocation root: `ssh <host> 'ls -d /projects/*/$USER 2>/dev/null'` and
-   record it in `QUEST_ALLOCATION_ROOT` if present.
+   allocation: `ssh <host> 'groups'` — allocation IDs show up as groups like
+   `p12345`/`b1234`. Confirm the directory exists (`ls -d /projects/<id>`) and
+   record it in `QUEST_ALLOCATION_ROOT`. Note `/projects/<id>` is **shared by
+   all members of the allocation**; a per-user subdirectory under it is a lab
+   convention, not guaranteed — ask the user where their space is.
 5. On failure, follow NO_PASSWORDLESS above; do not write
    `QUEST_PASSWORDLESS=yes`.
 
@@ -146,19 +150,21 @@ Standard loop skeleton:
 ## 5. Key cluster facts (quick recall; details in references/)
 
 - Scheduler: SLURM, reached over SSH from a login node.
-- GPU partition names and hardware mix vary by allocation (Quest offers pools
-  such as `gengpu` with a mix of GPU generations, e.g. A100 and H100). Always
-  verify live with `sinfo -o "%P %l %D %c %m %G"` rather than assuming a fixed
-  partition name — allocations differ per PI group.
-- Durable project storage lives under `/projects/<allocation>/<netid>/`, sized
-  per the PI's storage allocation.
+- General-access partitions are `short`/`normal`/`long` (walltime tiers) plus
+  `gengpu` for GPUs (mixed generations, e.g. A100 and H100, selected via
+  `--gres=gpu:a100:1` etc.); buy-in allocations have their own `b####`
+  partitions. Verify live with `sinfo -o "%P %l %D %c %m %G"`.
+- Durable project storage lives under `/projects/<allocationID>/` — a directory
+  **shared by all members of the allocation**, sized per the PI's storage
+  allocation.
 - `/scratch/<netid>/` exists for temporary large outputs but is **auto-purged**
   (commonly after ~30 days) — never treat it as durable.
 - Conda/mamba environments must be explicitly activated in non-interactive
   shells (SSH / SLURM scripts) — do not rely on `.bashrc` being sourced; source
   the cluster's mamba/conda init script directly.
-- `tmux` is not available on Quest compute nodes; use `nohup ... </dev/null
-  >log 2>&1 & disown` for long-running detached processes instead.
+- `tmux` may not be available on Quest compute nodes (check with `command -v
+  tmux`); if absent, use `nohup ... </dev/null >log 2>&1 & disown` for
+  long-running detached processes instead.
 
 ## 6. Off-campus access (knowledge, not an operation)
 

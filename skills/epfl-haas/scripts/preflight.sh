@@ -10,6 +10,7 @@
 #   HAAS_USER=<your login>
 #   HAAS_PASSWORDLESS=yes            # set by this script after a successful test
 #   HAAS_PASSWORDLESS_CHECKED=<date>
+#   HAAS_PROJECT=                    # RunAI project name (runai config project <name>)
 #   HAAS_PVC_ROOT=                   # PVC-backed project root, if known
 #
 # Exit codes: 0 READY | 2 NO_CONFIG or BAD_CONFIG | 3 NO_PASSWORDLESS

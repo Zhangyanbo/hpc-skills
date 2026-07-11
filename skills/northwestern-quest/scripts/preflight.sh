@@ -8,7 +8,7 @@
 #   QUEST_NETID=<your Northwestern NetID>
 #   QUEST_PASSWORDLESS=yes            # set by this script after a successful test
 #   QUEST_PASSWORDLESS_CHECKED=<date>
-#   QUEST_ALLOCATION_ROOT=            # /projects/<allocation>/<netid> if you have one
+#   QUEST_ALLOCATION_ROOT=            # /projects/<allocationID> (or a subdir) if you have one
 #   QUEST_SCRATCH_ROOT=               # /scratch/<netid> (auto-purged; optional)
 #
 # Exit codes: 0 READY | 2 NO_CONFIG or BAD_CONFIG | 3 NO_PASSWORDLESS

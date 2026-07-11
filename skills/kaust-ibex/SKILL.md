@@ -106,7 +106,7 @@ ssh "$IBEX_HOST" 'squeue --me; echo ---; sacct -X --starttime today -o JobID,Job
 | Resource efficiency of a finished job | `seff <jobid>` |
 | Storage usage | `df -h /ibex/user` (or the cluster's official quota command) |
 | Partition / node states | `sinfo` |
-| GPU availability | `sinfo -p <gpu-partition> -o "%n %G %t"` |
+| GPU availability | `sinfo -o "%n %G %f %t"` (single `batch` partition; filter by feature/GRES) |
 | Job logs | `tail -50 <submit-dir>/slurm-<jobid>.out` (or the path set via `--output`) |
 | Recover a job's real account/QOS/paths | `scontrol show job <id>` |
 
@@ -147,15 +147,19 @@ Standard loop skeleton:
 ## 5. Key cluster facts (quick recall; details in references/)
 
 - Scheduler: SLURM, reached over SSH from a login/frontend node.
-- Ibex commonly exposes several GPU-oriented partitions with different time
-  limits and GPU-generation mixes (e.g. separate lanes for shorter vs longer
-  jobs, and A100 vs V100 hardware). Do not hardcode a partition name or time
-  limit from a previous project; always verify live with
-  `sinfo -o "%P %l %D %c %m %G"` — partition names, limits, and account access
-  vary and can change between site software refreshes.
-- Durable project storage conventionally lives under `/ibex/user/<username>`,
-  distinct from the smaller login home directory — do not conflate the two in
-  scripts or project memory.
+- Ibex uses a **single default `batch` partition** for CPU and GPU jobs alike;
+  you pick hardware via `--gpus`/`--gres` plus `--constraint=<gpu-type>`
+  (`a100`, `v100`, `rtx2080ti`, `gtx1080ti`, …), not via a GPU partition.
+  Wall-time cap is uniform (14 days). Constraint names and limits can drift —
+  verify live with `sinfo -o "%P %l %D %c %m %G"` and
+  `sinfo -o "%n %G %f %t"`.
+- Two login nodes: `ilogin` (CPU) and `glogin` (GPU — use it when a build
+  needs to see a GPU, e.g. compiling CUDA code).
+- Durable project storage lives under `/ibex/user/<username>` (1.5 TB per
+  user, persists for the account's lifetime), distinct from the login home
+  directory (200 GB **and a file-count quota** — another reason conda envs
+  belong under `/ibex/user`) — do not conflate the two in scripts or project
+  memory.
 - Off-campus access to Ibex typically requires the KAUST network or VPN;
   if a connection that worked on campus fails off campus, that's the first
   thing to check, not SSH key configuration.
